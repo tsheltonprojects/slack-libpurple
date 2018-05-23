@@ -3,6 +3,7 @@
 #include "slack-json.h"
 #include "slack-api.h"
 #include "slack-channel.h"
+#include "slack-message.h"
 #include "slack-im.h"
 #include "slack-message.h"
 #include "slack-conversation.h"
@@ -35,10 +36,77 @@ static void conversations_list_cb(SlackAccount *sa, gpointer data, json_value *j
 		slack_login_step(sa);
 }
 
+static void get_latest_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	json_value *chan_json = json_get_prop(json, "channel");
+	if (!chan_json)
+		return;
+
+	SlackObject *conv;
+	slack_object_id id;
+	const char *sid;
+
+	sid = json_get_prop_strptr(chan_json, "user");
+	if (sid) {
+		// Direct IM, use user ID.
+		slack_object_id_set(id, sid);
+		conv = g_hash_table_lookup(sa->users, id);
+	} else {
+		// MPIM, use conversation ID.
+		sid = json_get_prop_strptr(chan_json, "id");
+		if (!sid) {
+			purple_debug_warning("slack", "slack response did not include 'user' or 'id' while fetching history\n");
+			return;
+		}
+		slack_object_id_set(id, sid);
+		conv = g_hash_table_lookup(sa->channels, id);
+	}
+
+	if (!conv) {
+		purple_debug_warning("slack", "unable to locate user/channel '%s' while fetching history\n", sid);
+		return;
+	}
+
+	purple_debug_misc("slack", "fetching history for conversation '%s'\n", sid);
+	slack_get_history(sa, conv,
+			  json_get_prop_strptr(chan_json, "last_read"),
+			  json_get_prop_val(chan_json, "unread_count", integer, 0));
+}
+
+static void get_unread_messages_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	json_value *all_ims[2] = { json_get_prop(json, "ims"), json_get_prop(json, "mpims") };
+
+	for (unsigned im_type = 0; im_type < 2; im_type++) {
+		json_value *chans = all_ims[im_type];
+		for (unsigned i = 0; chans && i < chans->u.array.length; i++) {
+			json_value *chan_json = chans->u.array.values[i];
+			const char *latest = json_get_prop_strptr(chan_json, "latest");
+			const char *last_read = json_get_prop_strptr(chan_json, "last_read");
+			if (latest && last_read && strcmp(latest, last_read) == 0) {
+				/* Skip API call if we have read everything already. */
+				continue;
+			}
+			const char *chan_id = json_get_prop_strptr(chan_json, "id");
+			if (!chan_id) {
+				purple_debug_warning("slack", "slack response did not include 'id' while fetching unread messages\n");
+				continue;
+			}
+			slack_api_call(sa, get_latest_history_cb, NULL, "conversations.info", "channel", chan_id, NULL);
+		}
+	}
+}
+
+static void get_unread_messages(SlackAccount *sa) {
+	/* Private API, not documented. Found by EionRobb (Github). */
+	slack_api_call(sa, get_unread_messages_cb, NULL, "users.counts", "mpim_aware", "true", "only_relevant_ims", "true", "simple_unreads", "true", NULL);
+}
+
 void slack_conversations_load(SlackAccount *sa) {
 	g_hash_table_remove_all(sa->channels);
 	g_hash_table_remove_all(sa->ims);
 	CONVERSATIONS_LIST_CALL(sa);
+	if (purple_account_get_bool(sa->account, "get_history", FALSE)) {
+		get_unread_messages(sa);
+	}
 }
 
 SlackObject *slack_conversation_get_conversation(SlackAccount *sa, PurpleConversation *conv) {
