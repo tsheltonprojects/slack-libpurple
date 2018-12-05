@@ -242,6 +242,11 @@ static void slack_close(PurpleConnection *gc) {
 	if (!sa)
 		return;
 
+	if (sa->fetch_unread_timer) {
+		purple_timeout_remove(sa->fetch_unread_timer);
+		sa->fetch_unread_timer = 0;
+	}
+
 	if (sa->mark_timer) {
 		/* really should send final marks if we can... */
 		purple_timeout_remove(sa->mark_timer);
@@ -260,6 +265,9 @@ static void slack_close(PurpleConnection *gc) {
 	g_hash_table_destroy(sa->rtm_call);
 
 	slack_api_disconnect(sa);
+
+	if (sa->fetch_unread_queue)
+		g_queue_free_full(sa->fetch_unread_queue, &g_free);
 
 	if (sa->roomlist)
 		purple_roomlist_unref(sa->roomlist);

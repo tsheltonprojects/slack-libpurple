@@ -72,8 +72,33 @@ static void get_latest_history_cb(SlackAccount *sa, gpointer data, json_value *j
 			  json_get_prop_val(chan_json, "unread_count", integer, 0));
 }
 
+static gboolean get_queued_unread_messages_cb(gpointer data) {
+	SlackAccount *sa = data;
+
+	if (!g_queue_is_empty(sa->fetch_unread_queue)) {
+		char *chan_id = g_queue_pop_head(sa->fetch_unread_queue);
+		slack_api_call(sa, get_latest_history_cb, NULL, "conversations.info", "channel", chan_id, NULL);
+		g_free(chan_id);
+	}
+
+	if (!g_queue_is_empty(sa->fetch_unread_queue)) {
+		/* Wait and then fetch next. */
+		return TRUE;
+	} else {
+		/* We won't need the queue anymore. */
+		g_queue_free(sa->fetch_unread_queue);
+		sa->fetch_unread_queue = NULL;
+		sa->fetch_unread_timer = 0;
+		return FALSE;
+	}
+}
+
 static void get_unread_messages_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	json_value *all_ims[2] = { json_get_prop(json, "ims"), json_get_prop(json, "mpims") };
+
+	if (!sa->fetch_unread_queue) {
+		sa->fetch_unread_queue = g_queue_new();
+	}
 
 	for (unsigned im_type = 0; im_type < 2; im_type++) {
 		json_value *chans = all_ims[im_type];
@@ -90,8 +115,17 @@ static void get_unread_messages_cb(SlackAccount *sa, gpointer data, json_value *
 				purple_debug_warning("slack", "slack response did not include 'id' while fetching unread messages\n");
 				continue;
 			}
-			slack_api_call(sa, get_latest_history_cb, NULL, "conversations.info", "channel", chan_id, NULL);
+
+			g_queue_push_tail(sa->fetch_unread_queue, g_strdup(chan_id));
 		}
+	}
+
+	if (!g_queue_is_empty(sa->fetch_unread_queue)) {
+		sa->fetch_unread_timer = purple_timeout_add_seconds(5, get_queued_unread_messages_cb, sa);
+	} else {
+		/* We won't need the queue anymore. */
+		g_queue_free(sa->fetch_unread_queue);
+		sa->fetch_unread_queue = NULL;
 	}
 }
 
