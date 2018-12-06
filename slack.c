@@ -12,6 +12,7 @@
 #include "slack.h"
 #include "slack-api.h"
 #include "slack-rtm.h"
+#include "slack-json.h"
 #include "slack-user.h"
 #include "slack-im.h"
 #include "slack-channel.h"
@@ -50,6 +51,12 @@ static GList *slack_status_types(G_GNUC_UNUSED PurpleAccount *acct) {
 	return types;
 }
 
+static void slack_set_profile(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	GString *profile_json = data;
+	slack_api_call(sa, NULL, NULL, "users.profile.set", "profile", profile_json->str, NULL);
+	g_string_free(profile_json, TRUE);
+}
+
 static void slack_set_status(PurpleAccount *account, PurpleStatus *status) {
 	PurpleConnection *gc = account->gc;
 	if (!gc)
@@ -57,26 +64,24 @@ static void slack_set_status(PurpleAccount *account, PurpleStatus *status) {
 	SlackAccount *sa = gc->proto_data;
 	g_return_if_fail(sa);
 
-	// Set status
-	PurpleStatusType *status_type = purple_status_get_type(status);
-	const char *status_id = purple_status_type_get_id(status_type);
+	/* Set status */
 	const char *presence;
-	if (!purple_status_is_active(status) || g_strcmp0(status_id, "active") != 0)
+	if (!purple_status_is_active(status) ||
+			purple_status_type_get_primitive(purple_status_get_type(status)) == PURPLE_STATUS_AWAY)
 		presence = "away";
 	else
 		presence = "auto";
-	slack_api_call(sa, NULL, NULL, "users.setPresence", "presence", presence, NULL);
 
-	// Set message
+	/* Set message */
 	const char *message = purple_status_get_attr_string(status, "message");
-	if (!message)
-		message = "";
-	GString *profile_json = g_string_new(NULL);
-	g_string_sprintf(profile_json,
-		"{ \"status_text\": \"%s\", \"status_emoji\": \"\", \"status_expiration\": 0 }",
-		message);
-	slack_api_call(sa, NULL, NULL, "users.profile.set", "profile", profile_json->str, NULL);
-	g_string_free(profile_json, TRUE);
+	GString *profile_json = g_string_new("{\"status_text\":");
+	if (message)
+		append_json_string(profile_json, message);
+	else
+		g_string_append(profile_json, "\"\"");
+	g_string_append(profile_json, ",\"status_emoji\":\"\"}");
+
+	slack_api_call(sa, slack_set_profile, profile_json, "users.setPresence", "presence", presence, NULL);
 }
 
 static GList *slack_chat_info(PurpleConnection *gc) {
