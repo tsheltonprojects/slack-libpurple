@@ -63,6 +63,7 @@ static void conversations_counts_cb(SlackAccount *sa, gpointer data, json_value 
 		SlackUser *user = slack_user_set(sa, user_id, json_get_prop_strptr(im, "name"));
 		slack_im_set(sa, im, user, TRUE, FALSE);
 	}
+	/* TODO: unread_count */
 
 	slack_login_step(sa);
 }
