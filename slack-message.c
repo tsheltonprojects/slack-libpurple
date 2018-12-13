@@ -295,12 +295,21 @@ static void slack_attachment_to_html(GString *html, SlackAccount *sa, json_value
 			char *title = json_get_prop_strptr(field, "title");
 			char *value = json_get_prop_strptr(field, "value");
 
-			g_string_append_printf(html,
+			g_string_append_printf(html, "<br />%s<b>", attachment_prefix->str);
+
+			// Run the title through the conversion to html.
+			slack_message_to_html(html, sa, title, NULL, attachment_prefix->str);
+			g_string_append(html, "</b>: <i>");
+
+			// Run the value through the conversion to html.
+			slack_message_to_html(html, sa, value, NULL, attachment_prefix->str);
+			g_string_append(html, "</i>");
+			/*			g_string_append_printf(html,
 				"<br />%s<b>%s</b>: <i>%s</i>",
 				attachment_prefix->str,
 				title ?: "Unknown Field Title",
 				value ?: "Unknown Field Value"
-			);
+				);*/
 		}
 	}
 
