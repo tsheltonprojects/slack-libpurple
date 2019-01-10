@@ -348,9 +348,8 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 	json_value *thread = json_get_prop(message, "thread_ts");
 	if (thread) {
 		time_t tt = slack_parse_time(thread);
-		g_string_append(html, "&lt;");
 		g_string_append(html, purple_time_format(localtime(&tt)));
-		g_string_append(html, "&gt; ");
+		g_string_append(html, "⤷  ");
 	}
 
 	slack_message_to_html(html, sa, json_get_prop_strptr(message, "text"), flags, NULL);
