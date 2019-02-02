@@ -65,12 +65,8 @@ static void slack_set_status(PurpleAccount *account, PurpleStatus *status) {
 	g_return_if_fail(sa);
 
 	/* Set status */
-	const char *presence;
-	if (!purple_status_is_active(status) ||
-			purple_status_type_get_primitive(purple_status_get_type(status)) == PURPLE_STATUS_AWAY)
-		presence = "away";
-	else
-		presence = "auto";
+	sa->away = !purple_status_is_active(status) ||
+			purple_status_type_get_primitive(purple_status_get_type(status)) == PURPLE_STATUS_AWAY;
 
 	/* Set message */
 	const char *message = purple_status_get_attr_string(status, "message");
@@ -81,7 +77,21 @@ static void slack_set_status(PurpleAccount *account, PurpleStatus *status) {
 		g_string_append(profile_json, "\"\"");
 	g_string_append(profile_json, ",\"status_emoji\":\"\"}");
 
-	slack_api_call(sa, slack_set_profile, profile_json, "users.setPresence", "presence", presence, NULL);
+	slack_api_call(sa, slack_set_profile, profile_json, "users.setPresence", "presence", sa->away ? "away" : "auto", NULL);
+}
+
+static void slack_set_idle(PurpleConnection *gc, int idle) {
+	if (idle > 0)
+		return;
+
+	SlackAccount *sa = gc->proto_data;
+	g_return_if_fail(sa);
+
+	if (sa->away)
+		return;
+
+	/* poke slack to maintain unidle status (how often?) */
+	slack_api_call(sa, NULL, NULL, "users.setPresence", "presence", "auto", NULL);
 }
 
 static GList *slack_chat_info(PurpleConnection *gc) {
@@ -300,7 +310,7 @@ static PurplePluginProtocolInfo prpl_info = {
 	slack_send_typing,	/* send_typing */
 	slack_get_info,		/* get_info */
 	slack_set_status,	/* set_status */
-	NULL,			/* set_idle */
+	slack_set_idle,		/* set_idle */
 	NULL,			/* change_passwd */
 	NULL,			/* add_buddy */
 	NULL,			/* add_buddies */
