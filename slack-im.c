@@ -124,19 +124,6 @@ static void send_im_cb(SlackAccount *sa, gpointer data, json_value *json, const 
 	if (error)
 		purple_conv_present_error(send->user->object.name, sa->account, error);
 
-	json_value *ts = json_get_prop(json, "ts");
-	const char *tss = json_get_strptr(ts);
-	/* if we've already received this sent message, don't re-display it (#79) */
-	if (slack_ts_cmp(tss, send->user->object.last_mesg) != 0) {
-		GString *html = g_string_new(NULL);
-		slack_json_to_html(html, sa, json, &send->flags);
-		time_t mt = slack_parse_time(ts);
-		PurpleConversation *conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, send->user->object.name, sa->account);
-		if (conv)
-			purple_conv_im_write(PURPLE_CONV_IM(conv), NULL, html->str, send->flags, mt);
-		g_string_free(html, TRUE);
-	}
-
 	send_im_free(send);
 }
 
@@ -182,5 +169,5 @@ int slack_send_im(PurpleConnection *gc, const char *who, const char *msg, Purple
 	else
 		send_im_open_cb(sa, send, NULL, NULL);
 
-	return 0;
+	return 1;
 }
