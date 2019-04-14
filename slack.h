@@ -50,6 +50,8 @@ typedef struct _SlackAccount {
 	SlackObject *mark_list;
 
 	GQueue *avatar_queue; /* Queue for avatar downloads */
+
+	gboolean away;
 } SlackAccount;
 
 void slack_login_step(SlackAccount *sa);

@@ -295,12 +295,15 @@ static void slack_attachment_to_html(GString *html, SlackAccount *sa, json_value
 			char *title = json_get_prop_strptr(field, "title");
 			char *value = json_get_prop_strptr(field, "value");
 
-			g_string_append_printf(html,
-				"<br />%s<b>%s</b>: <i>%s</i>",
-				attachment_prefix->str,
-				title ?: "Unknown Field Title",
-				value ?: "Unknown Field Value"
-			);
+			g_string_append_printf(html, "<br />%s<b>", attachment_prefix->str);
+
+			// Run the title through the conversion to html.
+			slack_message_to_html(html, sa, title, NULL, attachment_prefix->str);
+			g_string_append(html, "</b>: <i>");
+
+			// Run the value through the conversion to html.
+			slack_message_to_html(html, sa, value, NULL, attachment_prefix->str);
+			g_string_append(html, "</i>");
 		}
 	}
 
@@ -341,6 +344,13 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 		g_string_append(html, "/me ");
 	else if (subtype && flags)
 		*flags |= PURPLE_MESSAGE_SYSTEM;
+
+	json_value *thread = json_get_prop(message, "thread_ts");
+	if (thread) {
+		time_t tt = slack_parse_time(thread);
+		g_string_append(html, purple_time_format(localtime(&tt)));
+		g_string_append(html, "⤷  ");
+	}
 
 	slack_message_to_html(html, sa, json_get_prop_strptr(message, "text"), flags, NULL);
 
