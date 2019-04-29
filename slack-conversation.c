@@ -37,7 +37,7 @@ static void conversations_list_cb(SlackAccount *sa, gpointer data, json_value *j
 }
 
 static void get_latest_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
-	json_value *chan_json = json_get_prop(json, "channel");
+	json_value *chan_json = json_get_prop_type(json, "channel", object);
 	if (!chan_json)
 		return;
 
@@ -94,7 +94,7 @@ static gboolean get_queued_unread_messages_cb(gpointer data) {
 }
 
 static void get_unread_messages_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
-	json_value *all_ims[2] = { json_get_prop(json, "ims"), json_get_prop(json, "mpims") };
+	json_value *all_ims[2] = { json_get_prop_type(json, "ims", array), json_get_prop_type(json, "mpims", array) };
 
 	if (!sa->fetch_unread_queue) {
 		sa->fetch_unread_queue = g_queue_new();
@@ -103,11 +103,17 @@ static void get_unread_messages_cb(SlackAccount *sa, gpointer data, json_value *
 	for (unsigned im_type = 0; im_type < 2; im_type++) {
 		json_value *chans = all_ims[im_type];
 		for (unsigned i = 0; chans && i < chans->u.array.length; i++) {
-			json_value *chan_json = chans->u.array.values[i];
+			json_value *chan_json = json_get_type(chans->u.array.values[i], object);
+			if (!chan_json) {
+				purple_debug_warning("slack", "Unexpected type of array member when fetching unread messages\n");
+				continue;
+			}
 			const char *latest = json_get_prop_strptr(chan_json, "latest");
 			const char *last_read = json_get_prop_strptr(chan_json, "last_read");
-			if (latest && last_read && strcmp(latest, last_read) == 0) {
-				/* Skip API call if we have read everything already. */
+			if (!latest || !last_read || strcmp(latest, last_read) == 0) {
+				/* Skip API call if latest/last_read information
+				   is missing, or we have read everything
+				   already. */
 				continue;
 			}
 			const char *chan_id = json_get_prop_strptr(chan_json, "id");
