@@ -54,7 +54,6 @@ typedef struct _SlackAccount {
 	gboolean away;
 
 	GQueue *fetch_unread_queue; /* Queue for unread messages we need to fetch. */
-	guint fetch_unread_timer;
 } SlackAccount;
 
 void slack_login_step(SlackAccount *sa);

@@ -8,6 +8,10 @@
 #include "slack-message.h"
 #include "slack-conversation.h"
 
+static void get_next_queued_unread_message(SlackAccount *sa);
+static void get_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error);
+static gboolean slack_get_history_with_cb(SlackAccount *sa, SlackObject *conv, SlackAPICallback cb, const char *since, unsigned count);
+
 static SlackObject *conversation_update(SlackAccount *sa, json_value *json) {
 	if (json_get_prop_boolean(json, "is_im", FALSE))
 		return (SlackObject*)slack_im_set(sa, json, &json_value_none, FALSE);
@@ -36,10 +40,15 @@ static void conversations_list_cb(SlackAccount *sa, gpointer data, json_value *j
 		slack_login_step(sa);
 }
 
-static void get_latest_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static void get_history_login_step_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	get_history_cb(sa, data, json, error);
+	get_next_queued_unread_message(sa);
+}
+
+static gboolean get_latest_history2_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	json_value *chan_json = json_get_prop_type(json, "channel", object);
 	if (!chan_json)
-		return;
+		return FALSE;
 
 	SlackObject *conv;
 	slack_object_id id;
@@ -55,7 +64,7 @@ static void get_latest_history_cb(SlackAccount *sa, gpointer data, json_value *j
 		sid = json_get_prop_strptr(chan_json, "id");
 		if (!sid) {
 			purple_debug_warning("slack", "slack response did not include 'user' or 'id' while fetching history\n");
-			return;
+			return FALSE;
 		}
 		slack_object_id_set(id, sid);
 		conv = g_hash_table_lookup(sa->channels, id);
@@ -63,33 +72,32 @@ static void get_latest_history_cb(SlackAccount *sa, gpointer data, json_value *j
 
 	if (!conv) {
 		purple_debug_warning("slack", "unable to locate user/channel '%s' while fetching history\n", sid);
-		return;
+		return FALSE;
 	}
 
 	purple_debug_misc("slack", "fetching history for conversation '%s'\n", sid);
-	slack_get_history(sa, conv,
+	return slack_get_history_with_cb(sa, conv, get_history_login_step_cb,
 			  json_get_prop_strptr(chan_json, "last_read"),
 			  json_get_prop_val(chan_json, "unread_count", integer, 0));
 }
 
-static gboolean get_queued_unread_messages_cb(gpointer data) {
-	SlackAccount *sa = data;
+static void get_latest_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	gboolean result = get_latest_history2_cb(sa, data, json, error);
+	if (!result)
+		get_next_queued_unread_message(sa);
+}
 
+static void get_next_queued_unread_message(SlackAccount *sa) {
 	if (!g_queue_is_empty(sa->fetch_unread_queue)) {
 		char *chan_id = g_queue_pop_head(sa->fetch_unread_queue);
 		slack_api_call(sa, get_latest_history_cb, NULL, "conversations.info", "channel", chan_id, NULL);
 		g_free(chan_id);
-	}
-
-	if (!g_queue_is_empty(sa->fetch_unread_queue)) {
-		/* Wait and then fetch next. */
-		return TRUE;
 	} else {
 		/* We won't need the queue anymore. */
 		g_queue_free(sa->fetch_unread_queue);
 		sa->fetch_unread_queue = NULL;
-		sa->fetch_unread_timer = 0;
-		return FALSE;
+
+		slack_login_step(sa);
 	}
 }
 
@@ -126,27 +134,21 @@ static void get_unread_messages_cb(SlackAccount *sa, gpointer data, json_value *
 		}
 	}
 
-	if (!g_queue_is_empty(sa->fetch_unread_queue)) {
-		sa->fetch_unread_timer = purple_timeout_add_seconds(5, get_queued_unread_messages_cb, sa);
-	} else {
-		/* We won't need the queue anymore. */
-		g_queue_free(sa->fetch_unread_queue);
-		sa->fetch_unread_queue = NULL;
-	}
-}
-
-static void get_unread_messages(SlackAccount *sa) {
-	/* Private API, not documented. Found by EionRobb (Github). */
-	slack_api_call(sa, get_unread_messages_cb, NULL, "users.counts", "mpim_aware", "true", "only_relevant_ims", "true", "simple_unreads", "true", NULL);
+	get_next_queued_unread_message(sa);
 }
 
 void slack_conversations_load(SlackAccount *sa) {
 	g_hash_table_remove_all(sa->channels);
 	g_hash_table_remove_all(sa->ims);
 	CONVERSATIONS_LIST_CALL(sa);
-	if (purple_account_get_bool(sa->account, "get_history", FALSE)) {
-		get_unread_messages(sa);
-	}
+}
+
+void slack_unread_messages_load(SlackAccount *sa) {
+	if (purple_account_get_bool(sa->account, "get_history", FALSE))
+		/* Private API, not documented. Found by EionRobb (Github). */
+		slack_api_call(sa, get_unread_messages_cb, NULL, "users.counts", "mpim_aware", "true", "only_relevant_ims", "true", "simple_unreads", "true", NULL);
+	else
+		slack_login_step(sa);
 }
 
 SlackObject *slack_conversation_get_conversation(SlackAccount *sa, PurpleConversation *conv) {
@@ -273,20 +275,26 @@ static void get_history_cb(SlackAccount *sa, gpointer data, json_value *json, co
 	g_object_unref(obj);
 }
 
-void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count) {
+static gboolean slack_get_history_with_cb(SlackAccount *sa, SlackObject *conv, SlackAPICallback cb, const char *since, unsigned count) {
 	if (SLACK_IS_CHANNEL(conv)) {
 		SlackChannel *chan = (SlackChannel*)conv;
 		if (!chan->cid)
 			slack_chat_open(sa, chan);
 	}
 	if (count == 0)
-		return;
+		return FALSE;
 	const char *id = slack_conversation_id(conv);
-	g_return_if_fail(id);
+	if (id == NULL)
+		return FALSE;
 
 	char count_buf[6] = "";
 	snprintf(count_buf, 5, "%u", count);
-	slack_api_call(sa, get_history_cb, g_object_ref(conv), "conversations.history", "channel", id, "oldest", since ?: "0", "limit", count_buf, NULL);
+	slack_api_call(sa, cb, g_object_ref(conv), "conversations.history", "channel", id, "oldest", since ?: "0", "limit", count_buf, NULL);
+	return TRUE;
+}
+
+void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count) {
+	slack_get_history_with_cb(sa, conv, get_history_cb, since, count);
 }
 
 void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *json) {

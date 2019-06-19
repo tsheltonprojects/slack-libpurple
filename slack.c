@@ -230,6 +230,11 @@ void slack_login_step(SlackAccount *sa) {
 			slack_conversations_load(sa);
 			break;
 		case 5:
+			MSG("Loading unread messages");
+			slack_unread_messages_load(sa);
+			break;
+		case 6:
+			MSG("Connected");
 			slack_presence_sub(sa);
 			purple_connection_set_state(sa->gc, PURPLE_CONNECTED);
 	}
@@ -241,11 +246,6 @@ static void slack_close(PurpleConnection *gc) {
 
 	if (!sa)
 		return;
-
-	if (sa->fetch_unread_timer) {
-		purple_timeout_remove(sa->fetch_unread_timer);
-		sa->fetch_unread_timer = 0;
-	}
 
 	if (sa->mark_timer) {
 		/* really should send final marks if we can... */

@@ -65,4 +65,9 @@ void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *j
  */
 void slack_get_conversation_unread(SlackAccount *sa, SlackObject *conv);
 
+/**
+ * Query for unread messages for private chats, and fetch them
+ */
+void slack_unread_messages_load(SlackAccount *sa);
+
 #endif // _PURPLE_SLACK_CONVERSATION_H
