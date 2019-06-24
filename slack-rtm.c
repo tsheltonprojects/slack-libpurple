@@ -148,6 +148,10 @@ static void rtm_connect_cb(SlackAccount *sa, gpointer data, json_value *json, co
 	}
 
 	if (sa->rtm) {
+		if (sa->ping_timer) {
+			purple_timeout_remove(sa->ping_timer);
+			sa->ping_timer = 0;
+		}
 		purple_websocket_abort(sa->rtm);
 		sa->rtm = NULL;
 	}
