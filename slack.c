@@ -90,7 +90,7 @@ static void slack_set_idle(PurpleConnection *gc, int idle) {
 	if (sa->away)
 		return;
 
-	/* poke slack to maintain unidle status (how often?) */
+	/* poke slack to maintain unidle status (also done in ping_timer) */
 	slack_rtm_send(sa, NULL, NULL, "tickle", NULL);
 }
 
