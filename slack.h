@@ -49,11 +49,10 @@ typedef struct _SlackAccount {
 	guint mark_timer;
 	SlackObject *mark_list;
 
-	GQueue *avatar_queue; /* Queue for avatar downloads */
+	GQueue *avatar_queue; /* SlackUser * queue for avatar downloads */
+	GQueue *get_history_queue; /* struct get_history * queue for unread messages we need to fetch. */
 
 	gboolean away;
-
-	GQueue *fetch_unread_queue; /* Queue for unread messages we need to fetch. */
 } SlackAccount;
 
 void slack_login_step(SlackAccount *sa);

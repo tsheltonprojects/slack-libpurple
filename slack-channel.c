@@ -60,13 +60,13 @@ SlackChannel *slack_channel_set(SlackAccount *sa, json_value *json, SlackChannel
 
 	SlackChannel *chan = g_hash_table_lookup(sa->channels, id);
 
-	     if (json_get_prop_boolean(json, "is_archived", FALSE))
+	if      (json_get_prop_boolean(json, "is_archived", FALSE))
 		type = SLACK_CHANNEL_DELETED;
-	else if (json_get_prop_boolean(json, "is_mpim", FALSE))
+	else if (json_get_prop_boolean(json, "is_mpim", FALSE) || type >= SLACK_CHANNEL_MPIM)
 		type = SLACK_CHANNEL_MPIM;
-	else if (json_get_prop_boolean(json, "is_group", FALSE))
+	else if (json_get_prop_boolean(json, "is_group", FALSE) || type >= SLACK_CHANNEL_GROUP)
 		type = SLACK_CHANNEL_GROUP;
-	else if (json_get_prop_boolean(json, "is_member", FALSE) || json_get_prop_boolean(json, "is_general", FALSE))
+	else if (json_get_prop_boolean(json, "is_member", FALSE) || json_get_prop_boolean(json, "is_general", FALSE) || type >= SLACK_CHANNEL_MEMBER)
 		type = SLACK_CHANNEL_MEMBER;
 	else if (json_get_prop_boolean(json, "is_channel", FALSE))
 		type = SLACK_CHANNEL_PUBLIC;
@@ -131,18 +131,6 @@ void slack_channel_update(SlackAccount *sa, json_value *json, SlackChannelType e
 	slack_channel_set(sa, json_get_prop(json, "channel"), event);
 }
 
-struct join_channel {
-	SlackChannel *chan;
-	char *name;
-};
-
-static void join_channel_free(struct join_channel *join) {
-	if (join->chan)
-		g_object_unref(join->chan);
-	g_free(join->name);
-	g_free(join);
-}
-
 static void channels_info_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	SlackChannelType type = GPOINTER_TO_INT(data);
 	json = json_get_prop_type(json, type >= SLACK_CHANNEL_GROUP ? "group" : "channel", object);
@@ -202,6 +190,18 @@ void slack_chat_open(SlackAccount *sa, SlackChannel *chan) {
 	serv_got_joined_chat(sa->gc, chan->cid, chan->object.name);
 
 	slack_api_call(sa, channels_info_cb, GINT_TO_POINTER(chan->type), chan->type >= SLACK_CHANNEL_GROUP ? "groups.info" : "channels.info", "channel", chan->object.id, NULL);
+}
+
+struct join_channel {
+	SlackChannel *chan;
+	char *name;
+};
+
+static void join_channel_free(struct join_channel *join) {
+	if (join->chan)
+		g_object_unref(join->chan);
+	g_free(join->name);
+	g_free(join);
 }
 
 static void channels_join_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {

@@ -195,6 +195,7 @@ static void slack_login(PurpleAccount *account) {
 	sa->channel_cids = g_hash_table_new_full(g_direct_hash,    g_direct_equal,        NULL, NULL);
 
 	sa->avatar_queue = g_queue_new();
+	sa->get_history_queue = g_queue_new();
 
 	sa->buddies = g_hash_table_new_full(/* slack_object_id_hash, slack_object_id_equal, */ g_str_hash, g_str_equal, NULL, NULL);
 
@@ -207,8 +208,9 @@ static void slack_login(PurpleAccount *account) {
 }
 
 void slack_login_step(SlackAccount *sa) {
+	gboolean lazy = FALSE;
 #define MSG(msg) \
-	purple_connection_update_progress(sa->gc, msg, ++sa->login_step, 6)
+	purple_connection_update_progress(sa->gc, msg, ++sa->login_step, 8)
 	switch (sa->login_step) {
 		case 0:
 			MSG("Requesting RTM");
@@ -222,16 +224,21 @@ void slack_login_step(SlackAccount *sa) {
 			MSG("RTM Connected");
 			break;
 		case 3: /* rtm_msg("hello") */
+			lazy = purple_account_get_bool(sa->account, "lazy_load", FALSE);
 			MSG("Loading Users");
-			slack_users_load(sa);
-			break;
+			if (!lazy) {
+				slack_users_load(sa);
+				break;
+			}
 		case 4:
 			MSG("Loading conversations");
-			slack_conversations_load(sa);
-			break;
+			if (!lazy) {
+				slack_conversations_load(sa);
+				break;
+			}
 		case 5:
-			MSG("Loading unread messages");
-			slack_unread_messages_load(sa);
+			MSG("Loading active conversations");
+			slack_conversation_counts(sa);
 			break;
 		case 6:
 			MSG("Connected");
@@ -266,8 +273,9 @@ static void slack_close(PurpleConnection *gc) {
 
 	slack_api_disconnect(sa);
 
-	if (sa->fetch_unread_queue)
-		g_queue_free_full(sa->fetch_unread_queue, &g_free);
+	/* #52: don't use g_queue_free_full for backwards compatibility */
+	g_queue_foreach(sa->get_history_queue, (GFunc)slack_get_history_free, NULL);
+	g_queue_free(sa->get_history_queue);
 
 	if (sa->roomlist)
 		purple_roomlist_unref(sa->roomlist);
@@ -389,7 +397,7 @@ static PurplePluginInfo info = {
 	"0.1",
 	"Slack protocol plugin",
 	"Slack protocol support for libpurple.",
-	"Dylan Simon <dylan@dylex.net>, Valeriy Golenkov <valery.golenkov@gmail.com>",
+	"Dylan Simon <dylan@dylex.net>",
 	"http://github.com/dylex/slack-libpurple",
 	NULL,
 	NULL,
@@ -416,13 +424,19 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 		purple_account_option_bool_new("Open chat on channel message", "open_chat", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
-		purple_account_option_bool_new("Retrieve unread history on open", "get_history", FALSE));
+		purple_account_option_bool_new("Retrieve unread IM (*and conversation) history on connect", "load_history", FALSE));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_bool_new("Retrieve unread history on conversation open (*and connect)", "get_history", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Download user avatars", "enable_avatar_download", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_string_new("Prepend attachment lines with this string", "attachment_prefix", "▎ "));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_bool_new("Lazy loading: only request objects on demand (EXPERIMENTAL!)", "lazy_load", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_int_new("Seconds to delay when ratelimited", "ratelimit_delay", 15));

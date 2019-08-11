@@ -7,7 +7,7 @@
 
 /* Initialization */
 void slack_presence_sub(SlackAccount *sa);
-SlackUser *slack_im_set(SlackAccount *sa, json_value *json, const json_value *open_user, gboolean update_sub);
+SlackUser *slack_im_set(SlackAccount *sa, json_value *json, SlackUser *user, gboolean is_open, gboolean update_sub);
 
 /* RTM event handlers */
 void slack_im_close(SlackAccount *sa, json_value *json);

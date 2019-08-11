@@ -27,6 +27,7 @@ static inline PurpleBuddy *user_buddy(SlackUser *user) {
 /* Initialization */
 void slack_users_load(SlackAccount *sa);
 
+SlackUser *slack_user_set(SlackAccount *sa, const char *sid, const char *name);
 SlackUser *slack_user_update(SlackAccount *sa, json_value *json);
 
 typedef void SlackUserCallback(SlackAccount *sa, gpointer data, SlackUser *user);

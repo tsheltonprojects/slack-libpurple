@@ -33,7 +33,7 @@ void slack_presence_sub(SlackAccount *sa) {
 	g_string_free(ids, TRUE);
 }
 
-SlackUser *slack_im_set(SlackAccount *sa, json_value *json, const json_value *open_user, gboolean update_sub) {
+SlackUser *slack_im_set(SlackAccount *sa, json_value *json, SlackUser *user, gboolean is_open, gboolean update_sub) {
 	const char *sid = json_get_strptr(json);
 	if (sid)
 		json = NULL;
@@ -44,12 +44,13 @@ SlackUser *slack_im_set(SlackAccount *sa, json_value *json, const json_value *op
 	slack_object_id id;
 	slack_object_id_set(id, sid);
 
-	SlackUser *user = g_hash_table_lookup(sa->ims, id);
+	if (!user)
+		user = g_hash_table_lookup(sa->ims, id);
 
-	gboolean is_open = json_get_prop_boolean(json, "is_open", open_user != NULL);
+	is_open = json_get_prop_boolean(json, "is_open", is_open);
 	gboolean changed = FALSE;
 
-	const char *user_id = json_get_prop_strptr(json, "user") ?: json_get_strptr(open_user);
+	const char *user_id = json_get_prop_strptr(json, "user") ?: (user ? user->object.id : NULL);
 	g_return_val_if_fail(user_id, user);
 
 	if (!user) {
@@ -58,15 +59,15 @@ SlackUser *slack_im_set(SlackAccount *sa, json_value *json, const json_value *op
 			purple_debug_warning("IM %s for unknown user: %s\n", sid, user_id);
 			return user;
 		}
-		if (slack_object_id_cmp(user->im, id)) {
-			if (*user->im)
-				g_hash_table_remove(sa->ims, user->im);
-			slack_object_id_copy(user->im, id);
-			g_hash_table_insert(sa->ims, user->im, user);
-			changed = TRUE;
-		}
 	} else
 		g_warn_if_fail(slack_object_id_is(user->object.id, user_id));
+	if (slack_object_id_cmp(user->im, id)) {
+		if (*user->im)
+			g_hash_table_remove(sa->ims, user->im);
+		slack_object_id_copy(user->im, id);
+		g_hash_table_insert(sa->ims, user->im, user);
+		changed = TRUE;
+	}
 
 	if (is_open) {
 		if (!user->object.buddy) {
@@ -99,11 +100,17 @@ SlackUser *slack_im_set(SlackAccount *sa, json_value *json, const json_value *op
 }
 
 void slack_im_close(SlackAccount *sa, json_value *json) {
-	slack_im_set(sa, json_get_prop(json, "channel"), NULL, TRUE);
+	slack_im_set(sa, json_get_prop(json, "channel"), NULL, FALSE, TRUE);
+}
+
+static void slack_im_open_user(SlackAccount *sa, void *data, SlackUser *user) {
+	json_value *json = data;
+	slack_im_set(sa, json_get_prop(json, "channel"), user, TRUE, TRUE);
+	json_value_free(json);
 }
 
 void slack_im_open(SlackAccount *sa, json_value *json) {
-	slack_im_set(sa, json_get_prop(json, "channel"), json_get_prop(json, "user"), TRUE);
+	slack_user_retrieve(sa, json_get_prop_strptr(json, "user"), slack_im_open_user, json);
 }
 
 struct send_im {
@@ -132,7 +139,7 @@ static void send_im_open_cb(SlackAccount *sa, gpointer data, json_value *json, c
 
 	json = json_get_prop_type(json, "channel", object);
 	if (json)
-		slack_im_set(sa, json, &json_value_none, TRUE);
+		slack_im_set(sa, json, send->user, TRUE, TRUE);
 
 	if (error || !*send->user->im) {
 		purple_conv_present_error(send->user->object.name, sa->account, error ?: "failed to open IM channel");

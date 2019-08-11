@@ -26,34 +26,18 @@ static void slack_user_class_init(SlackUserClass *klass) {
 static void slack_user_init(SlackUser *self) {
 }
 
-SlackUser *slack_user_update(SlackAccount *sa, json_value *json) {
-	const char *sid = json_get_prop_strptr(json, "id");
-	if (!sid)
-		return NULL;
+SlackUser *slack_user_set(SlackAccount *sa, const char *sid, const char *name) {
 	slack_object_id id;
 	slack_object_id_set(id, sid);
+	g_warn_if_fail(name);
 
 	SlackUser *user = g_hash_table_lookup(sa->users, id);
-
-	if (json_get_prop_boolean(json, "deleted", FALSE)) {
-		if (!user)
-			return NULL;
-		if (user->object.name)
-			g_hash_table_remove(sa->user_names, user->object.name);
-		if (*user->im)
-			g_hash_table_remove(sa->ims, user->im);
-		g_hash_table_remove(sa->users, id);
-		return NULL;
-	}
 
 	if (!user) {
 		user = g_object_new(SLACK_TYPE_USER, NULL);
 		slack_object_id_copy(user->object.id, id);
 		g_hash_table_replace(sa->users, user->object.id, user);
 	}
-
-	const char *name = json_get_prop_strptr(json, "name");
-	g_warn_if_fail(name);
 
 	if (g_strcmp0(user->object.name, name)) {
 		purple_debug_misc("slack", "user %s: %s\n", sid, name);
@@ -67,11 +51,35 @@ SlackUser *slack_user_update(SlackAccount *sa, json_value *json) {
 			purple_blist_rename_buddy(user_buddy(user), user->object.name);
 	}
 
+	return user;
+}
+
+SlackUser *slack_user_update(SlackAccount *sa, json_value *json) {
+	const char *sid = json_get_prop_strptr(json, "id");
+	if (!sid)
+		return NULL;
+
+	SlackUser *user;
+
+	if (json_get_prop_boolean(json, "deleted", FALSE)) {
+		user = (SlackUser*)slack_object_hash_table_lookup(sa->users, sid);
+		if (!user)
+			return NULL;
+		if (user->object.name)
+			g_hash_table_remove(sa->user_names, user->object.name);
+		if (*user->im)
+			g_hash_table_remove(sa->ims, user->im);
+		slack_object_hash_table_remove(sa->users, sid);
+		return NULL;
+	}
+
+	user = slack_user_set(sa, sid, json_get_prop_strptr(json, "name"));
+
 	json_value *profile = json_get_prop_type(json, "profile", object);
 	if (profile) {
 		const char *display = json_get_prop_strptr1(profile, "display_name");
 		if (display)
-			serv_got_alias(sa->gc, name, display);
+			serv_got_alias(sa->gc, user->object.name, display);
 
 		const char *status = json_get_prop_strptr1(profile, "status_text") ?: json_get_prop_strptr1(profile, "current_status");
 		g_free(user->status);
@@ -140,7 +148,7 @@ static void user_retrieve_cb(SlackAccount *sa, gpointer data, json_value *json, 
 
 void slack_user_retrieve(SlackAccount *sa, const char *uid, SlackUserCallback *cb, gpointer data) {
 	SlackUser *user = (SlackUser *)slack_object_hash_table_lookup(sa->users, uid);
-	if (user)
+	if (user && !uid)
 		return cb(sa, data, user);
 	struct user_retrieve *lookup = g_new(struct user_retrieve, 1);
 	lookup->cb = cb;

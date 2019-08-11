@@ -30,6 +30,7 @@ static inline SlackObject *slack_conversation_lookup_sid(SlackAccount *sa, const
 
 /** @name Initialization */
 void slack_conversations_load(SlackAccount *sa);
+void slack_conversation_counts(SlackAccount *sa);
 
 /** @name API */
 SlackObject *slack_conversation_get_conversation(SlackAccount *sa, PurpleConversation *conv);
@@ -66,8 +67,12 @@ void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *j
 void slack_get_conversation_unread(SlackAccount *sa, SlackObject *conv);
 
 /**
- * Query for unread messages for private chats, and fetch them
+ * An opaque element of get_history_queue
  */
-void slack_unread_messages_load(SlackAccount *sa);
+struct get_history;
+/**
+ * Free an element of get_history_queue
+ */
+void slack_get_history_free(struct get_history *h);
 
 #endif // _PURPLE_SLACK_CONVERSATION_H

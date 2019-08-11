@@ -33,6 +33,7 @@ static gboolean rtm_msg(SlackAccount *sa, const char *type, json_value *json) {
 	}
 	else if (!strcmp(type, "im_open")) {
 		slack_im_open(sa, json);
+		return TRUE;
 	}
 	else if (!strcmp(type, "member_joined_channel")) {
 		slack_member_joined_channel(sa, json, TRUE);
