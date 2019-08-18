@@ -199,6 +199,7 @@ void slack_rtm_cancel(SlackRTMCall *call) {
 }
 
 void slack_rtm_send(SlackAccount *sa, SlackRTMCallback *callback, gpointer user_data, const char *type, ...) {
+	g_return_if_fail(sa->rtm);
 	guint id = ++sa->rtm_id;
 
 	GString *json = g_string_new(NULL);
