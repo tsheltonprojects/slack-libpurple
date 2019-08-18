@@ -85,7 +85,7 @@ static void slack_set_idle(PurpleConnection *gc, int idle) {
 		return;
 
 	SlackAccount *sa = gc->proto_data;
-	g_return_if_fail(sa);
+	g_return_if_fail(sa && sa->rtm);
 
 	if (sa->away)
 		return;
