@@ -11,6 +11,7 @@
 
 #include "slack.h"
 #include "slack-api.h"
+#include "slack-auth.h"
 #include "slack-rtm.h"
 #include "slack-json.h"
 #include "slack-user.h"
@@ -153,6 +154,8 @@ static void slack_conversation_updated(PurpleConversation *conv, PurpleConvUpdat
 
 static void slack_login(PurpleAccount *account) {
 	PurpleConnection *gc = purple_account_get_connection(account);
+	const gchar *username = NULL;
+	gchar *team;
 
 	static gboolean signals_connected = FALSE;
 	if (!signals_connected) {
@@ -163,26 +166,32 @@ static void slack_login(PurpleAccount *account) {
 				gc->prpl, PURPLE_CALLBACK(slack_conversation_updated), NULL);
 	}
 
-	const gchar *token = purple_account_get_string(account, "api_token", NULL);
-	if (!token || !*token) {
-		purple_debug_warning("slack", "api_token not set; using password as token\n");
-		token = purple_account_get_password(account);
-	}
-	if (!token || !*token) {
+	team = g_strrstr(purple_account_get_username(account), "/");
+	if (!team || !*team) {
 		purple_connection_error_reason(gc,
-			PURPLE_CONNECTION_ERROR_INVALID_SETTINGS, "API token required");
+			PURPLE_CONNECTION_ERROR_INVALID_SETTINGS, "Team name is required");
 		return;
 	}
+	/* move the team pointer forward one character as it is a / right now */
+	team++;
 
 	SlackAccount *sa = g_new0(SlackAccount, 1);
 	gc->proto_data = sa;
 	sa->account = account;
 	sa->gc = gc;
+	sa->team.name = g_strdup(team);
 
-	const char *host = strrchr(account->username, '@');
-	sa->api_url = g_strdup_printf("https://%s/api", host ? host+1 : "slack.com");
+	/* now parse the username out of the usersplit */
+	sa->email = g_strdup(purple_account_get_username(account));
+	gchar *slash = g_strrstr(sa->email, "/");
+	*slash = '\0';
 
-	sa->token = g_strdup(purple_url_encode(token));
+	/* the mobile auth needs some different defaults than the rest of the prpl,
+	 * so we set those here and set them to the proper values at the end of
+	 * authentication.
+	 */
+	sa->token = g_strdup("");
+	sa->api_url = g_strdup_printf("https://slack.com/api");
 
 	sa->rtm_call = g_hash_table_new_full(g_direct_hash,        g_direct_equal,        NULL, (GDestroyNotify)slack_rtm_cancel);
 
@@ -208,28 +217,38 @@ static void slack_login(PurpleAccount *account) {
 
 void slack_login_step(SlackAccount *sa) {
 #define MSG(msg) \
-	purple_connection_update_progress(sa->gc, msg, ++sa->login_step, 6)
+	purple_connection_update_progress(sa->gc, msg, ++sa->login_step, 9)
 	switch (sa->login_step) {
 		case 0:
+			MSG("Looking up team");
+			slack_auth_login(sa);
+			break;
+		case 1:
+			MSG("Finding user");
+			break;
+		case 2:
+			MSG("Logging in");
+			break;
+		case 3:
 			MSG("Requesting RTM");
 			slack_rtm_connect(sa);
 			break;
-		case 1: /* slack_connect_cb */
+		case 4: /* slack_connect_cb */
 			MSG("Connecting to RTM");
 			/* purple_websocket_connect */
 			break;
-		case 2: /* rtm_cb */
+		case 5: /* rtm_cb */
 			MSG("RTM Connected");
 			break;
-		case 3: /* rtm_msg("hello") */
+		case 6: /* rtm_msg("hello") */
 			MSG("Loading Users");
 			slack_users_load(sa);
 			break;
-		case 4:
+		case 7:
 			MSG("Loading conversations");
 			slack_conversations_load(sa);
 			break;
-		case 5:
+		case 8:
 			slack_presence_sub(sa);
 			purple_connection_set_state(sa->gc, PURPLE_CONNECTED);
 	}
@@ -283,6 +302,7 @@ static void slack_close(PurpleConnection *gc) {
 
 	g_free(sa->api_url);
 	g_free(sa->token);
+	g_free(sa->email);
 	g_free(sa);
 	gc->proto_data = NULL;
 }
@@ -290,7 +310,6 @@ static void slack_close(PurpleConnection *gc) {
 static PurplePluginProtocolInfo prpl_info = {
 	/* options */
 	OPT_PROTO_CHAT_TOPIC
-		| OPT_PROTO_NO_PASSWORD
 		/* TODO, requires redirecting / commands to hidden API: | OPT_PROTO_SLASH_COMMANDS_NATIVE */,
 	NULL,			/* user_splits */
 	NULL,			/* protocol_options */
@@ -399,10 +418,7 @@ static PurplePluginInfo info = {
 static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 {
 	prpl_info.user_splits = g_list_append(prpl_info.user_splits,
-		purple_account_user_split_new("Host", "slack.com", '@'));
-
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
-		purple_account_option_string_new("API token", "api_token", ""));
+		purple_account_user_split_new("Team", "", '/'));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Open chat on channel message", "open_chat", FALSE));
