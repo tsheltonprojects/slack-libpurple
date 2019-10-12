@@ -154,7 +154,6 @@ static void slack_conversation_updated(PurpleConversation *conv, PurpleConvUpdat
 
 static void slack_login(PurpleAccount *account) {
 	PurpleConnection *gc = purple_account_get_connection(account);
-	const gchar *username = NULL;
 	gchar *team;
 
 	static gboolean signals_connected = FALSE;
