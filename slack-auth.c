@@ -17,14 +17,18 @@ slack_auth_login_signin_cb(SlackAccount *sa, gpointer user_data, json_value *jso
 		return;
 	}
 
-	/* now that we've signed in, we need to clear the values we overrode for
-	 * authentication and set them to the regular values.
-	 */
+	/* set the new token in the slack account */
 	g_free(sa->token);
 	sa->token = g_strdup(token);
 
+	/* save the token as the password */
+	purple_account_set_password(sa->account, sa->token);
+
+	/* now that we've signed in, we need to clear the values we overrode for
+	 * authentication and set them to the regular values.
+	 */
 	g_free(sa->api_url);
-	sa->api_url = g_strdup_printf("https://%s.slack.com/api", sa->team.name);
+	sa->api_url = g_strdup_printf("https://%s/api", sa->host);
 
 	slack_login_step(sa);
 }
@@ -81,6 +85,6 @@ slack_auth_login(SlackAccount *sa) {
 	/* validate the team and get it's ID */
 	slack_api_call(sa, slack_auth_login_findteam_cb,
 		NULL, "auth.findTeam",
-		"domain", sa->team.name,
+		"domain", sa->host,
 		NULL);
 }

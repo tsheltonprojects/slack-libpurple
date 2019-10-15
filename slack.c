@@ -154,7 +154,6 @@ static void slack_conversation_updated(PurpleConversation *conv, PurpleConvUpdat
 
 static void slack_login(PurpleAccount *account) {
 	PurpleConnection *gc = purple_account_get_connection(account);
-	gchar *team;
 
 	static gboolean signals_connected = FALSE;
 	if (!signals_connected) {
@@ -165,32 +164,32 @@ static void slack_login(PurpleAccount *account) {
 				gc->prpl, PURPLE_CALLBACK(slack_conversation_updated), NULL);
 	}
 
-	team = g_strrstr(purple_account_get_username(account), "/");
-	if (!team || !*team) {
+	const gchar *host = g_strrstr(purple_account_get_username(account), "%");
+	if (!host || !*host) {
 		purple_connection_error_reason(gc,
-			PURPLE_CONNECTION_ERROR_INVALID_SETTINGS, "Team name is required");
+			PURPLE_CONNECTION_ERROR_INVALID_SETTINGS, "Host setting is required");
 		return;
 	}
-	/* move the team pointer forward one character as it is a / right now */
-	team++;
+	/* move the host pointer forward one character as it is at a % right now */
+	host++;
 
 	SlackAccount *sa = g_new0(SlackAccount, 1);
 	gc->proto_data = sa;
 	sa->account = account;
 	sa->gc = gc;
-	sa->team.name = g_strdup(team);
+	sa->host = g_strdup(host);
 
-	/* now parse the username out of the usersplit */
+	/* check if we have a token and set it as the password if we do */
+	const gchar *token = purple_account_get_string(sa->account, "api_token", NULL);
+	if (token && *token) {
+		sa->token = g_strdup(token);
+		purple_account_set_password(sa->account, sa->token);
+	}
+
+	/* now parse the host out of the usersplit */
 	sa->email = g_strdup(purple_account_get_username(account));
-	gchar *slash = g_strrstr(sa->email, "/");
-	*slash = '\0';
-
-	/* the mobile auth needs some different defaults than the rest of the prpl,
-	 * so we set those here and set them to the proper values at the end of
-	 * authentication.
-	 */
-	sa->token = g_strdup("");
-	sa->api_url = g_strdup_printf("https://slack.com/api");
+	gchar *percent = g_strrstr(sa->email, "%");
+	*percent = '\0';
 
 	sa->rtm_call = g_hash_table_new_full(g_direct_hash,        g_direct_equal,        NULL, (GDestroyNotify)slack_rtm_cancel);
 
@@ -210,6 +209,37 @@ static void slack_login(PurpleAccount *account) {
 
 	purple_connection_set_display_name(gc, account->alias ?: account->username);
 	purple_connection_set_state(gc, PURPLE_CONNECTING);
+
+	/* check if a token has been stored in the password field. */
+	const char *password = purple_account_get_password(sa->account);
+	purple_debug_info("slack", "\n\n\n\npassword: %s\n\n\n\n", password);
+	if(g_regex_match_simple("^xox.-.+", password, 0, 0)) {
+		/* the password is a token, so copy it to the token field */
+		sa->token = g_strdup(password);
+
+		/* set the api url to the property host */
+		sa->api_url = g_strdup_printf("https://%s/api", sa->host);
+
+		/* finally skip the mobile login as we already have a token */
+		sa->login_step = 3;
+	} else {
+		if(!password || !*password) {
+			purple_connection_error_reason(
+				purple_account_get_connection(sa->account),
+				PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
+				"No password provided");
+
+			return;
+		}
+
+		/* we do not have a token, so we have to do the mobile login.
+		 * the mobile auth needs some different defaults than the rest of the
+		 * prpl, so we set those here and set them to the proper values at the
+		 * end of authentication.
+		 */
+		sa->token = g_strdup("");
+		sa->api_url = g_strdup_printf("https://slack.com/api");
+	}
 
 	slack_login_step(sa);
 }
@@ -302,6 +332,7 @@ static void slack_close(PurpleConnection *gc) {
 	g_free(sa->api_url);
 	g_free(sa->token);
 	g_free(sa->email);
+	g_free(sa->host);
 	g_free(sa);
 	gc->proto_data = NULL;
 }
@@ -309,6 +340,7 @@ static void slack_close(PurpleConnection *gc) {
 static PurplePluginProtocolInfo prpl_info = {
 	/* options */
 	OPT_PROTO_CHAT_TOPIC
+		| OPT_PROTO_PASSWORD_OPTIONAL
 		/* TODO, requires redirecting / commands to hidden API: | OPT_PROTO_SLASH_COMMANDS_NATIVE */,
 	NULL,			/* user_splits */
 	NULL,			/* protocol_options */
@@ -416,8 +448,12 @@ static PurplePluginInfo info = {
 
 static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 {
+
 	prpl_info.user_splits = g_list_append(prpl_info.user_splits,
-		purple_account_user_split_new("Team", "", '/'));
+		purple_account_user_split_new("Host", "slack.com", '%'));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_string_new("API token", "api_token", ""));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Open chat on channel message", "open_chat", FALSE));

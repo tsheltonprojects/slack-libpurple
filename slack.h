@@ -17,6 +17,7 @@ typedef struct _SlackAccount {
 	PurpleAccount *account;
 	PurpleConnection *gc;
 	char *email;
+	char *host;
 	char *api_url; /* e.g., "https://slack.com/api" */
 	char *token; /* url encoded */
 
