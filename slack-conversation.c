@@ -45,8 +45,11 @@ void slack_conversations_load(SlackAccount *sa) {
 static inline void conversation_counts_check_unread(SlackAccount *sa, SlackObject *conv, json_value *json, gboolean load_history) {
 	if (!conv || !load_history)
 		return;
-	if (!json_get_prop_val(json, "has_unreads", boolean, FALSE) ||
-			json_get_prop_val(json, "is_muted", boolean, FALSE))
+	gboolean has_unreads = FALSE;
+	if (json_get_prop_val(json, "has_unreads", boolean, FALSE) ||
+			json_get_prop_val(json, "unread_count", integer, 0) > 0)
+		has_unreads = TRUE;
+	if (!has_unreads || json_get_prop_val(json, "is_muted", boolean, FALSE))
 		return;
 	const char *since = json_get_prop_strptr(json, "last_read");
 	if (!since)
