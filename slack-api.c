@@ -67,9 +67,11 @@ static void api_cb(G_GNUC_UNUSED PurpleUtilFetchUrlData *fetch, gpointer data, c
 	if ((*call->prev = call->next))
 		call->next->prev = call->prev;
 	if (call->callback)
-		call->callback(call->sa, call->data, json, NULL);
+		if (call->callback(call->sa, call->data, json, NULL))
+			json = NULL;
 
-	json_value_free(json);
+	if (json)
+		json_value_free(json);
 	g_free(call->url);
 	g_free(call);
 }

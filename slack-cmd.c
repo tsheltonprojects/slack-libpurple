@@ -43,12 +43,12 @@ static const char *slack_cmds[] = {
 	NULL
 };
 
-static void send_cmd_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean send_cmd_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	PurpleConversation *conv = data;
 
 	if (error) {
 		purple_conversation_write(conv, NULL, error, PURPLE_MESSAGE_ERROR, time(NULL));
-		return;
+		return FALSE;
 	}
 
 	char *response = json_get_prop_strptr(json, "response");
@@ -59,6 +59,7 @@ static void send_cmd_cb(SlackAccount *sa, gpointer data, json_value *json, const
 		purple_conversation_write(conv, NULL, html->str, flags, time(NULL));
 		g_string_free(html, TRUE);
 	}
+	return FALSE;
 }
 
 static PurpleCmdRet send_cmd(PurpleConversation *conv, const gchar *cmd, gchar **args, gchar **error, void *data) {

@@ -17,12 +17,12 @@ static SlackObject *conversation_update(SlackAccount *sa, json_value *json) {
 #define CONVERSATIONS_LIST_CALL(sa, ARGS...) \
 	slack_api_call(sa, conversations_list_cb, NULL, "conversations.list", "types", "public_channel,private_channel,mpim,im", "exclude_archived", "true", SLACK_PAGINATE_LIMIT, ##ARGS, NULL)
 
-static void conversations_list_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean conversations_list_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	json_value *chans = json_get_prop_type(json, "channels", array);
 	if (!chans) {
 		purple_connection_error_reason(sa->gc,
 				PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error ?: "Missing conversation list");
-		return;
+		return FALSE;
 	}
 
 	for (unsigned i = 0; i < chans->u.array.length; i++)
@@ -33,6 +33,7 @@ static void conversations_list_cb(SlackAccount *sa, gpointer data, json_value *j
 		CONVERSATIONS_LIST_CALL(sa, "cursor", cursor);
 	else
 		slack_login_step(sa);
+	return FALSE;
 }
 
 void slack_conversations_load(SlackAccount *sa) {
@@ -64,23 +65,26 @@ static void conversation_retrieve_user_cb(SlackAccount *sa, gpointer data, Slack
 	g_free(lookup);
 }
 
-static void conversation_retrieve_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean conversation_retrieve_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	struct conversation_retrieve *lookup = data;
 	json_value *chan = json_get_prop_type(json, "channel", object);
 	if (!chan || error) {
 		purple_debug_error("slack", "Error retrieving conversation: %s\n", error ?: "missing");
 		lookup->cb(sa, lookup->data, NULL);
 		g_free(lookup);
-		return;
+		return FALSE;
 	}
-	lookup->json = chan;
+	lookup->json = chan; // XXX FIXME
 	if (json_get_prop_boolean(json, "is_im", FALSE)) {
 		/* Make sure we know the user, too */
 		const char *uid = json_get_prop_strptr(json, "user");
-		if (uid)
-			return slack_user_retrieve(sa, uid, conversation_retrieve_user_cb, lookup);
+		if (uid) {
+			slack_user_retrieve(sa, uid, conversation_retrieve_user_cb, lookup);
+			return FALSE;
+		}
 	}
-	return conversation_retrieve_user_cb(sa, lookup, NULL);
+	conversation_retrieve_user_cb(sa, lookup, NULL);
+	return FALSE;
 }
 
 void slack_conversation_retrieve(SlackAccount *sa, const char *sid, SlackConversationCallback *cb, gpointer data) {
@@ -142,14 +146,14 @@ void slack_mark_conversation(SlackAccount *sa, PurpleConversation *conv) {
 	sa->mark_timer = purple_timeout_add_seconds(5, mark_conversation_timer, sa);
 }
 
-static void get_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	SlackObject *obj = data;
 	json_value *list = json_get_prop_type(json, "messages", array);
 
 	if (!list || error) {
 		purple_debug_error("slack", "Error loading channel history: %s\n", error ?: "missing");
 		g_object_unref(obj);
-		return;
+		return FALSE;
 	}
 
 	/* what order are these in? */
@@ -163,6 +167,7 @@ static void get_history_cb(SlackAccount *sa, gpointer data, json_value *json, co
 	/* TODO: has_more? */
 
 	g_object_unref(obj);
+	return FALSE;
 }
 
 void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count) {
@@ -187,18 +192,19 @@ void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *j
 			json_get_prop_val(json, "unread_count", integer, 0));
 }
 
-static void get_conversation_unread_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean get_conversation_unread_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	SlackObject *conv = data;
 	json = json_get_prop_type(json, "channel", object);
 
 	if (!json || error) {
 		purple_debug_error("slack", "Error getting conversation unread info: %s\n", error ?: "missing");
 		g_object_unref(conv);
-		return;
+		return FALSE;
 	}
 
 	slack_get_history_unread(sa, conv, json);
 	g_object_unref(conv);
+	return FALSE;
 }
 
 void slack_get_conversation_unread(SlackAccount *sa, SlackObject *conv) {

@@ -127,7 +127,7 @@ static void send_im_cb(SlackAccount *sa, gpointer data, json_value *json, const 
 	send_im_free(send);
 }
 
-static void send_im_open_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	struct send_im *send = data;
 
 	json = json_get_prop_type(json, "channel", object);
@@ -137,7 +137,7 @@ static void send_im_open_cb(SlackAccount *sa, gpointer data, json_value *json, c
 	if (error || !*send->user->im) {
 		purple_conv_present_error(send->user->object.name, sa->account, error ?: "failed to open IM channel");
 		send_im_free(send);
-		return;
+		return FALSE;
 	}
 
 	GString *channel = append_json_string(g_string_new(NULL), send->user->im);
@@ -145,6 +145,7 @@ static void send_im_open_cb(SlackAccount *sa, gpointer data, json_value *json, c
 	slack_rtm_send(sa, send_im_cb, send, "message", "channel", channel->str, "text", text->str, NULL);
 	g_string_free(channel, TRUE);
 	g_string_free(text, TRUE);
+	return FALSE;
 }
 
 int slack_send_im(PurpleConnection *gc, const char *who, const char *msg, PurpleMessageFlags flags) {
