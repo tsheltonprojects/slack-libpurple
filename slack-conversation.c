@@ -61,7 +61,9 @@ struct conversation_retrieve {
 
 static void conversation_retrieve_user_cb(SlackAccount *sa, gpointer data, SlackUser *user) {
 	struct conversation_retrieve *lookup = data;
-	lookup->cb(sa, lookup->data, conversation_update(sa, lookup->json));
+	json_value *chan = json_get_prop_type(lookup->json, "channel", object);
+	lookup->cb(sa, lookup->data, conversation_update(sa, chan));
+	json_value_free(lookup->json);
 	g_free(lookup);
 }
 
@@ -74,17 +76,17 @@ static gboolean conversation_retrieve_cb(SlackAccount *sa, gpointer data, json_v
 		g_free(lookup);
 		return FALSE;
 	}
-	lookup->json = chan; // XXX FIXME
+	lookup->json = json;
 	if (json_get_prop_boolean(json, "is_im", FALSE)) {
 		/* Make sure we know the user, too */
 		const char *uid = json_get_prop_strptr(json, "user");
 		if (uid) {
 			slack_user_retrieve(sa, uid, conversation_retrieve_user_cb, lookup);
-			return FALSE;
+			return TRUE;
 		}
 	}
 	conversation_retrieve_user_cb(sa, lookup, NULL);
-	return FALSE;
+	return TRUE;
 }
 
 void slack_conversation_retrieve(SlackAccount *sa, const char *sid, SlackConversationCallback *cb, gpointer data) {
