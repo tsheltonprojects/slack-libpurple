@@ -51,10 +51,11 @@ static GList *slack_status_types(G_GNUC_UNUSED PurpleAccount *acct) {
 	return types;
 }
 
-static void slack_set_profile(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean slack_set_profile(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	GString *profile_json = data;
 	slack_api_call(sa, NULL, NULL, "users.profile.set", "profile", profile_json->str, NULL);
 	g_string_free(profile_json, TRUE);
+	return FALSE;
 }
 
 static void slack_set_status(PurpleAccount *account, PurpleStatus *status) {

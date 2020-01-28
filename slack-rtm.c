@@ -146,10 +146,10 @@ static gboolean ping_timer(gpointer data) {
 	return TRUE;
 }
 
-static void rtm_connect_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean rtm_connect_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	if (error) {
 		purple_connection_error_reason(sa->gc, slack_api_connection_error(error), error);
-		return;
+		return FALSE;
 	}
 
 	if (sa->rtm) {
@@ -165,7 +165,7 @@ static void rtm_connect_cb(SlackAccount *sa, gpointer data, json_value *json, co
 	if (!url || !sa->self) {
 		purple_connection_error_reason(sa->gc,
 				slack_api_connection_error(error), error ?: "Missing RTM parameters");
-		return;
+		return FALSE;
 	}
 
 	purple_connection_set_display_name(sa->gc, sa->self->object.name);
@@ -190,6 +190,7 @@ static void rtm_connect_cb(SlackAccount *sa, gpointer data, json_value *json, co
 	sa->rtm = purple_websocket_connect(sa->account, url, NULL, rtm_cb, sa);
 
 	sa->ping_timer = purple_timeout_add_seconds(60, ping_timer, sa);
+	return FALSE;
 }
 
 void slack_rtm_cancel(SlackRTMCall *call) {

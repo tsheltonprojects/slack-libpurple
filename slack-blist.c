@@ -146,14 +146,14 @@ void free_roomlist_expand(struct roomlist_expand *expand) {
 	g_free(expand);
 }
 
-static void roomlist_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean roomlist_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	struct roomlist_expand *expand = data;
 
 	json = json_get_prop_type(json, expand->type >= SLACK_CHANNEL_GROUP ? "groups" : "channels", array);
 	if (!json || error) {
 		purple_notify_error(sa->gc, "Channel list error", "Could not read channel list", error);
 		free_roomlist_expand(expand);
-		return;
+		return FALSE;
 	}
 
 	for (unsigned i = 0; i < json->u.array.length; i++) {
@@ -176,6 +176,7 @@ static void roomlist_cb(SlackAccount *sa, gpointer data, json_value *json, const
 	}
 
 	free_roomlist_expand(expand);
+	return FALSE;
 }
 
 void slack_roomlist_expand_category(PurpleRoomlist *list, PurpleRoomlistRoom *parent) {

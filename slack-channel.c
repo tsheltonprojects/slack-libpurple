@@ -131,20 +131,20 @@ void slack_channel_update(SlackAccount *sa, json_value *json, SlackChannelType e
 	slack_channel_set(sa, json_get_prop(json, "channel"), event);
 }
 
-static void channels_info_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean channels_info_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	SlackChannelType type = GPOINTER_TO_INT(data);
 	json = json_get_prop_type(json, type >= SLACK_CHANNEL_GROUP ? "group" : "channel", object);
 
 	if (!json || error) {
 		purple_debug_error("slack", "Error loading channel info: %s\n", error ?: "missing");
-		return;
+		return FALSE;
 	}
 
 	SlackChannel *chan = slack_channel_set(sa, json, SLACK_CHANNEL_PUBLIC);
 
 	PurpleConvChat *conv = slack_channel_get_conversation(sa, chan);
 	if (!conv)
-		return;
+		return FALSE;
 
 	json_value *topic = json_get_prop_type(json, "topic", object);
 	if (topic) {
@@ -176,6 +176,7 @@ static void channels_info_cb(SlackAccount *sa, gpointer data, json_value *json, 
 	if (purple_account_get_bool(sa->account, "get_history", FALSE)) {
 		slack_get_history_unread(sa, &chan->object, json);
 	}
+	return FALSE;
 }
 
 void slack_chat_open(SlackAccount *sa, SlackChannel *chan) {
@@ -204,7 +205,7 @@ static void join_channel_free(struct join_channel *join) {
 	g_free(join);
 }
 
-static void channels_join_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean channels_join_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	struct join_channel *join = data;
 
 	SlackChannel *chan = json
@@ -217,12 +218,13 @@ static void channels_join_cb(SlackAccount *sa, gpointer data, json_value *json, 
 		GHashTable *info = slack_chat_info_defaults(sa->gc, join->name);
 		purple_serv_got_join_chat_failed(sa->gc, info);
 		join_channel_free(join);
-		return;
+		return FALSE;
 	}
 
 	slack_chat_open(sa, chan);
 
 	join_channel_free(join);
+	return FALSE;
 }
 
 void slack_join_chat(PurpleConnection *gc, GHashTable *info) {

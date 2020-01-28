@@ -106,12 +106,12 @@ void slack_user_changed(SlackAccount *sa, json_value *json) {
 	slack_user_update(sa, json_get_prop(json, "user"));
 }
 
-static void users_list_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean users_list_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	json_value *members = json_get_prop_type(json, "members", array);
 	if (!members) {
 		purple_connection_error_reason(sa->gc,
 				PURPLE_CONNECTION_ERROR_NETWORK_ERROR, error ?: "Missing user list");
-		return;
+		return FALSE;
 	}
 
 	for (unsigned i = 0; i < members->u.array.length; i ++)
@@ -122,6 +122,7 @@ static void users_list_cb(SlackAccount *sa, gpointer data, json_value *json, con
 		slack_api_call(sa, users_list_cb, NULL, "users.list", "presence", "false", SLACK_PAGINATE_LIMIT, "cursor", cursor, NULL);
 	else
 		slack_login_step(sa);
+	return FALSE;
 }
 
 void slack_users_load(SlackAccount *sa) {
@@ -134,7 +135,7 @@ struct user_retrieve {
 	gpointer data;
 };
 
-static void user_retrieve_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean user_retrieve_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	struct user_retrieve *lookup = data;
 	json_value *user = json_get_prop_type(json, "user", object);
 	SlackUser *obj = NULL;
@@ -144,6 +145,7 @@ static void user_retrieve_cb(SlackAccount *sa, gpointer data, json_value *json, 
 		obj = slack_user_update(sa, user);
 	lookup->cb(sa, lookup->data, obj);
 	g_free(lookup);
+	return FALSE;
 }
 
 void slack_user_retrieve(SlackAccount *sa, const char *uid, SlackUserCallback *cb, gpointer data) {
@@ -190,7 +192,7 @@ char *slack_status_text(PurpleBuddy *buddy) {
 	return user ? g_strdup(user->status) : NULL;
 }
 
-static void users_info_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+static gboolean users_info_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	char *who = data;
 
 	json = json_get_prop_type(json, "user", object);
@@ -199,7 +201,7 @@ static void users_info_cb(SlackAccount *sa, gpointer data, json_value *json, con
 		/* need to close userinfo dialog somehow? */
 		purple_notify_error(sa->gc, "User info error", "No such user", error ?: who);
 		g_free(who);
-		return;
+		return FALSE;
 	}
 
 	PurpleNotifyUserInfo *info = purple_notify_user_info_new();
@@ -255,6 +257,7 @@ static void users_info_cb(SlackAccount *sa, gpointer data, json_value *json, con
 	purple_notify_userinfo(sa->gc, who, info, NULL, NULL);
 	purple_notify_user_info_destroy(info);
 	g_free(who);
+	return FALSE;
 }
 
 void slack_set_info(PurpleConnection *gc, const char *info) {
