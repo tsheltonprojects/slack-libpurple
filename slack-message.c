@@ -479,7 +479,7 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 
 static void handle_message(SlackAccount *sa, gpointer data, SlackObject *obj) {
 	json_value *json = data;
-	return slack_handle_message(sa, obj, json, PURPLE_MESSAGE_RECV);
+	slack_handle_message(sa, obj, json, PURPLE_MESSAGE_RECV);
 	json_value_free(json);
 }
 
@@ -500,6 +500,7 @@ static gboolean slack_unset_typing_cb(SlackChatBuddy *chatbuddy) {
 	}
 	
 	g_free(chatbuddy->name);
+	chatbuddy->name = NULL;
 	return FALSE;
 }
 
@@ -519,8 +520,8 @@ void slack_user_typing(SlackAccount *sa, json_value *json) {
 		if (cb) {
 			purple_conv_chat_user_set_flags(chat, user->object.name, cb->flags | PURPLE_CBFLAGS_TYPING);
 			
-			guint timeout = GPOINTER_TO_INT(g_dataset_get_data(cb, "typing_timeout"));
-			SlackChatBuddy *chatbuddy = g_dataset_get_data(cb, "chatbuddy");
+			guint timeout = GPOINTER_TO_UINT(g_dataset_get_data(user, "typing_timeout"));
+			SlackChatBuddy *chatbuddy = g_dataset_get_data(user, "chatbuddy");
 			if (timeout) {
 				purple_timeout_remove(timeout);
 				if (chatbuddy) {
@@ -533,8 +534,8 @@ void slack_user_typing(SlackAccount *sa, json_value *json) {
 			chatbuddy->name = g_strdup(user->object.name);
 			timeout = purple_timeout_add_seconds(4, (GSourceFunc)slack_unset_typing_cb, chatbuddy);
 			
-			g_dataset_set_data(cb, "typing_timeout", GINT_TO_POINTER(timeout));
-			g_dataset_set_data(cb, "chatbuddy", chatbuddy);
+			g_dataset_set_data(user, "typing_timeout", GUINT_TO_POINTER(timeout));
+			g_dataset_set_data(user, "chatbuddy", chatbuddy);
 		}
 	} else {
 		purple_debug_warning("slack", "Unhandled typing: %s@%s\n", user_id, channel_id);
