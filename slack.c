@@ -154,6 +154,12 @@ static void slack_conversation_updated(PurpleConversation *conv, PurpleConvUpdat
 
 static void slack_login(PurpleAccount *account) {
 	PurpleConnection *gc = purple_account_get_connection(account);
+	gboolean legacy_token = FALSE;
+	const gchar *token = purple_account_get_string(account, "api_token", NULL);
+
+	if(token != NULL && g_str_has_prefix(token, "xoxp-")) {
+		legacy_token = TRUE;
+	}
 
 	static gboolean signals_connected = FALSE;
 	if (!signals_connected) {
@@ -164,13 +170,31 @@ static void slack_login(PurpleAccount *account) {
 				gc->prpl, PURPLE_CALLBACK(slack_conversation_updated), NULL);
 	}
 
-	const gchar *host = g_strrstr(purple_account_get_username(account), "%");
+	const gchar *username = purple_account_get_username(account);
+	const gchar *host = NULL;
+
+	if(legacy_token) {
+		/* the legacy token split on @ which we can't use because of email
+		 * addresses, so we manually split it here.
+		 */
+		host = g_strstr_len(username, -1, "@");
+	}
+
+	/* if we had a legacy token and it failed to find a host, try the % as well
+	 * since this could be an account created with the version of the plugin
+	 * since mobile auth was added but a user is trying to provide a legacy
+	 * api token.
+	 */
+	if(host == NULL) {
+		host = g_strrstr(username, "%");
+	}
+
 	if (!host || !*host) {
 		purple_connection_error_reason(gc,
 			PURPLE_CONNECTION_ERROR_INVALID_SETTINGS, "Host setting is required");
 		return;
 	}
-	/* move the host pointer forward one character as it is at a % right now */
+	/* move the host pointer forward one character passed the delimiter */
 	host++;
 
 	SlackAccount *sa = g_new0(SlackAccount, 1);
@@ -180,16 +204,19 @@ static void slack_login(PurpleAccount *account) {
 	sa->host = g_strdup(host);
 
 	/* check if we have a token and set it as the password if we do */
-	const gchar *token = purple_account_get_string(sa->account, "api_token", NULL);
 	if (token && *token) {
 		sa->token = g_strdup(token);
 		purple_account_set_password(sa->account, sa->token);
 	}
 
-	/* now parse the host out of the usersplit */
-	sa->email = g_strdup(purple_account_get_username(account));
-	gchar *percent = g_strrstr(sa->email, "%");
-	*percent = '\0';
+	if(!legacy_token) {
+		/* if we're not using the legacy token, grab the email out of the user
+		 * split and throw a null terminator on the end.
+		 */
+		sa->email = g_strdup(purple_account_get_username(account));
+		gchar *percent = g_strrstr(sa->email, "%");
+		*percent = '\0';
+	}
 
 	sa->rtm_call = g_hash_table_new_full(g_direct_hash,        g_direct_equal,        NULL, (GDestroyNotify)slack_rtm_cancel);
 
@@ -212,7 +239,6 @@ static void slack_login(PurpleAccount *account) {
 
 	/* check if a token has been stored in the password field. */
 	const char *password = purple_account_get_password(sa->account);
-	purple_debug_info("slack", "\n\n\n\npassword: %s\n\n\n\n", password);
 	if(g_regex_match_simple("^xox.-.+", password, 0, 0)) {
 		/* the password is a token, so copy it to the token field */
 		sa->token = g_strdup(password);
