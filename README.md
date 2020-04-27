@@ -13,6 +13,20 @@ Here's how slack concepts are mapped to purple:
 
 1. Install libpurple (pidgin, finch, etc.), including necessary development components on binary distros (`libpurple-devel`, `libpurple-dev`, etc.)
 1. Run `sudo make install` or `make install-user`
+
+### Authentication
+
+To login enter your email address as the `username` and
+`${WORKSPACE}.slack.com` as the `host`.  You can also optionally enter your
+password and have it saved.
+
+### Legacy Authentication
+
+Earlier versions of this plugin used Slack's legacy tokens for authentication.
+This feature is still supported, but as Slack will be stopping the creation
+of legacy tokens on May 5th 2020, it is highly advised that you migrate to the
+username/password authentication from above.
+
 1. [Issue a Slack API token](https://api.slack.com/custom-integrations/legacy-tokens) for yourself
 1. Add your slack account to your libpurple program and enter this token under (Advanced) API token (do *not* enter your slack password; username/hostname are optional but can be set to `you@your.slack.com`)
 
