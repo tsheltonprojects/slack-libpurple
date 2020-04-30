@@ -22,11 +22,9 @@ typedef char slack_object_id[SLACK_OBJECT_ID_SIZ];
 
 static inline void slack_object_id_set(slack_object_id id, const char *s) {
 	if (s) {
-		strncpy((char *)id, s, SLACK_OBJECT_ID_SIZ);
-		if (id[SLACK_OBJECT_ID_SIZ-1]) {
-			g_warn_if_reached();
-			id[SLACK_OBJECT_ID_SIZ-1] = 0;
-		}
+		strncpy((char *)id, s, SLACK_OBJECT_ID_SIZ-1);
+		id[SLACK_OBJECT_ID_SIZ-1] = 0;
+		g_warn_if_fail(s[SLACK_OBJECT_ID_SIZ-1] == 0);
 	} else
 		slack_object_id_clear(id);
 }
