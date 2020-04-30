@@ -11,6 +11,7 @@
 
 #include "slack.h"
 #include "slack-api.h"
+#include "slack-auth.h"
 #include "slack-rtm.h"
 #include "slack-json.h"
 #include "slack-user.h"
@@ -182,6 +183,12 @@ static void slack_conversation_updated(PurpleConversation *conv, PurpleConvUpdat
 
 static void slack_login(PurpleAccount *account) {
 	PurpleConnection *gc = purple_account_get_connection(account);
+	gboolean legacy_token = FALSE;
+	const gchar *token = purple_account_get_string(account, "api_token", NULL);
+
+	if(token != NULL && g_str_has_prefix(token, "xoxp-")) {
+		legacy_token = TRUE;
+	}
 
 	static gboolean signals_connected = FALSE;
 	if (!signals_connected) {
@@ -194,26 +201,53 @@ static void slack_login(PurpleAccount *account) {
 				gc->prpl, PURPLE_CALLBACK(slack_conversation_send_typing), NULL);
 	}
 
-	const gchar *token = purple_account_get_string(account, "api_token", NULL);
-	if (!token || !*token) {
-		purple_debug_warning("slack", "api_token not set; using password as token\n");
-		token = purple_account_get_password(account);
+	const gchar *username = purple_account_get_username(account);
+	const gchar *host = NULL;
+
+	if(legacy_token) {
+		/* the legacy token split on @ which we can't use because of email
+		 * addresses, so we manually split it here.
+		 */
+		host = g_strstr_len(username, -1, "@");
 	}
-	if (!token || !*token) {
+
+	/* if we had a legacy token and it failed to find a host, try the % as well
+	 * since this could be an account created with the version of the plugin
+	 * since mobile auth was added but a user is trying to provide a legacy
+	 * api token.
+	 */
+	if(host == NULL) {
+		host = g_strrstr(username, "%");
+	}
+
+	if (!host || !*host) {
 		purple_connection_error_reason(gc,
-			PURPLE_CONNECTION_ERROR_INVALID_SETTINGS, "API token required");
+			PURPLE_CONNECTION_ERROR_INVALID_SETTINGS, "Host setting is required");
 		return;
 	}
+	/* move the host pointer forward one character passed the delimiter */
+	host++;
 
 	SlackAccount *sa = g_new0(SlackAccount, 1);
 	gc->proto_data = sa;
 	sa->account = account;
 	sa->gc = gc;
+	sa->host = g_strdup(host);
 
-	const char *host = strrchr(account->username, '@');
-	sa->api_url = g_strdup_printf("https://%s/api", host ? host+1 : "slack.com");
+	/* check if we have a token and set it as the password if we do */
+	if (token && *token) {
+		sa->token = g_strdup(token);
+		purple_account_set_password(sa->account, sa->token);
+	}
 
-	sa->token = g_strdup(purple_url_encode(token));
+	if(!legacy_token) {
+		/* if we're not using the legacy token, grab the email out of the user
+		 * split and throw a null terminator on the end.
+		 */
+		sa->email = g_strdup(purple_account_get_username(account));
+		gchar *percent = g_strrstr(sa->email, "%");
+		*percent = '\0';
+	}
 
 	sa->rtm_call = g_hash_table_new_full(g_direct_hash,        g_direct_equal,        NULL, (GDestroyNotify)slack_rtm_cancel);
 
@@ -234,33 +268,73 @@ static void slack_login(PurpleAccount *account) {
 	purple_connection_set_display_name(gc, account->alias ?: account->username);
 	purple_connection_set_state(gc, PURPLE_CONNECTING);
 
+	/* check if a token has been stored in the password field. */
+	const char *password = purple_account_get_password(sa->account);
+	if(g_regex_match_simple("^xox.-.+", password, 0, 0)) {
+		/* the password is a token, so copy it to the token field */
+		sa->token = g_strdup(password);
+
+		/* set the api url to the property host */
+		sa->api_url = g_strdup_printf("https://%s/api", sa->host);
+
+		/* finally skip the mobile login as we already have a token */
+		sa->login_step = 3;
+	} else {
+		if(!password || !*password) {
+			purple_connection_error_reason(
+				purple_account_get_connection(sa->account),
+				PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
+				"No password provided");
+
+			return;
+		}
+
+		/* we do not have a token, so we have to do the mobile login.
+		 * the mobile auth needs some different defaults than the rest of the
+		 * prpl, so we set those here and set them to the proper values at the
+		 * end of authentication.
+		 */
+		sa->token = g_strdup("");
+		sa->api_url = g_strdup_printf("https://slack.com/api");
+	}
+
 	slack_login_step(sa);
 }
 
 void slack_login_step(SlackAccount *sa) {
 #define MSG(msg) \
-	purple_connection_update_progress(sa->gc, msg, ++sa->login_step, 6)
+	purple_connection_update_progress(sa->gc, msg, ++sa->login_step, 9)
 	switch (sa->login_step) {
 		case 0:
+			MSG("Looking up team");
+			slack_auth_login(sa);
+			break;
+		case 1:
+			MSG("Finding user");
+			break;
+		case 2:
+			MSG("Logging in");
+			break;
+		case 3:
 			MSG("Requesting RTM");
 			slack_rtm_connect(sa);
 			break;
-		case 1: /* slack_connect_cb */
+		case 4: /* slack_connect_cb */
 			MSG("Connecting to RTM");
 			/* purple_websocket_connect */
 			break;
-		case 2: /* rtm_cb */
+		case 5: /* rtm_cb */
 			MSG("RTM Connected");
 			break;
-		case 3: /* rtm_msg("hello") */
+		case 6: /* rtm_msg("hello") */
 			MSG("Loading Users");
 			slack_users_load(sa);
 			break;
-		case 4:
+		case 7:
 			MSG("Loading conversations");
 			slack_conversations_load(sa);
 			break;
-		case 5:
+		case 8:
 			slack_presence_sub(sa);
 			purple_connection_set_state(sa->gc, PURPLE_CONNECTED);
 	}
@@ -314,6 +388,8 @@ static void slack_close(PurpleConnection *gc) {
 
 	g_free(sa->api_url);
 	g_free(sa->token);
+	g_free(sa->email);
+	g_free(sa->host);
 	g_free(sa);
 	gc->proto_data = NULL;
 }
@@ -321,7 +397,7 @@ static void slack_close(PurpleConnection *gc) {
 static PurplePluginProtocolInfo prpl_info = {
 	/* options */
 	OPT_PROTO_CHAT_TOPIC
-		| OPT_PROTO_NO_PASSWORD
+		| OPT_PROTO_PASSWORD_OPTIONAL
 		/* TODO, requires redirecting / commands to hidden API: | OPT_PROTO_SLASH_COMMANDS_NATIVE */,
 	NULL,			/* user_splits */
 	NULL,			/* protocol_options */
@@ -429,8 +505,9 @@ static PurplePluginInfo info = {
 
 static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 {
+
 	prpl_info.user_splits = g_list_append(prpl_info.user_splits,
-		purple_account_user_split_new("Host", "slack.com", '@'));
+		purple_account_user_split_new("Host", "slack.com", '%'));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_string_new("API token", "api_token", ""));

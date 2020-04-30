@@ -1,4 +1,5 @@
 C_SRCS = slack.c \
+	 slack-auth.c \
 	 slack-cmd.c \
 	 slack-message.c \
 	 slack-conversation.c \
