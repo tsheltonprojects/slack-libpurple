@@ -4,7 +4,7 @@
 
 #include "util.h"
 
-static void
+static gboolean
 slack_auth_login_signin_cb(SlackAccount *sa, gpointer user_data, json_value *json, const char *error) {
 	const char *token = json_get_prop_strptr(json, "token");
 
@@ -14,7 +14,7 @@ slack_auth_login_signin_cb(SlackAccount *sa, gpointer user_data, json_value *jso
 			PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 			error ? error : "No token provided");
 
-		return;
+		return FALSE;
 	}
 
 	/* set the new token in the slack account */
@@ -31,9 +31,10 @@ slack_auth_login_signin_cb(SlackAccount *sa, gpointer user_data, json_value *jso
 	sa->api_url = g_strdup_printf("https://%s/api", sa->host);
 
 	slack_login_step(sa);
+	return FALSE;
 }
 
-static void
+static gboolean
 slack_auth_login_finduser_cb(SlackAccount *sa, gpointer user_data, json_value *json, const char *error) {
 	const char *user_id = json_get_prop_strptr(json, "user_id");
 
@@ -43,7 +44,7 @@ slack_auth_login_finduser_cb(SlackAccount *sa, gpointer user_data, json_value *j
 			PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 			error ? error : "User not found");
 
-		return;
+		return FALSE;
 	}
 
 	/* now do the actual login */
@@ -54,9 +55,10 @@ slack_auth_login_finduser_cb(SlackAccount *sa, gpointer user_data, json_value *j
 		"password", purple_account_get_password(sa->account),
 		"team", sa->team.id,
 		NULL);
+	return FALSE;
 }
 
-static void
+static gboolean
 slack_auth_login_findteam_cb(SlackAccount *sa, gpointer user_data, json_value *json, const char *error) {
 	const char *team_id = json_get_prop_strptr(json, "team_id");
 
@@ -66,7 +68,7 @@ slack_auth_login_findteam_cb(SlackAccount *sa, gpointer user_data, json_value *j
 			PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 			error ? error : "Team not found");
 
-		return;
+		return FALSE;
 	}
 
 	sa->team.id = g_strdup(team_id);
@@ -78,6 +80,7 @@ slack_auth_login_findteam_cb(SlackAccount *sa, gpointer user_data, json_value *j
 		"email", sa->email,
 		"team", sa->team.id,
 		NULL);
+	return FALSE;
 }
 
 void
