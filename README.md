@@ -17,8 +17,10 @@ Here's how slack concepts are mapped to purple:
 ### Authentication
 
 To login enter your email address as the `username` and
-`${WORKSPACE}.slack.com` as the `host`.  You can also optionally enter your
+`<workspace>.slack.com` as the `host`.  You can also optionally enter your
 password and have it saved.
+
+For use with [Bitlbee](https://bitlbee.org) set `username` to `user@example.com%<workspace>.slack.com`.
 
 ### Legacy Authentication
 
