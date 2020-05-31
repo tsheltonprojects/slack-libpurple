@@ -382,8 +382,6 @@ static void slack_close(PurpleConnection *gc) {
 	g_queue_foreach(sa->get_history_queue, (GFunc)slack_get_history_free, NULL);
 	g_queue_free(sa->get_history_queue);
 
-	if (sa->roomlist)
-		purple_roomlist_unref(sa->roomlist);
 	g_hash_table_destroy(sa->buddies);
 
 	g_hash_table_destroy(sa->channel_cids);

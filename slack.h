@@ -46,7 +46,7 @@ typedef struct _SlackAccount {
 
 	PurpleGroup *blist; /* default group for ims/channels */
 	GHashTable *buddies; /* char *slack_id -> PurpleBListNode */
-	PurpleRoomlist *roomlist;
+	gboolean roomlist_stop;
 
 	guint mark_timer;
 	SlackObject *mark_list;

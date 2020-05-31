@@ -87,10 +87,12 @@ $(LIBNAME): $(C_OBJS)
 
 .PHONY: install install-user
 install: $(LIBNAME)
-	install -D $(LIBNAME) $(PLUGIN_DIR_PURPLE)/$(LIBNAME)
-	install -D -m 0644 img/slack16.png $(DATA_ROOT_DIR_PURPLE)/pixmaps/pidgin/protocols/16/slack.png
-	install -D -m 0644 img/slack22.png $(DATA_ROOT_DIR_PURPLE)/pixmaps/pidgin/protocols/22/slack.png
-	install -D -m 0644 img/slack48.png $(DATA_ROOT_DIR_PURPLE)/pixmaps/pidgin/protocols/48/slack.png
+	install -d $(PLUGIN_DIR_PURPLE)
+	install $(LIBNAME) $(PLUGIN_DIR_PURPLE)/$(LIBNAME)
+	for z in 16 22 48 ; do \
+		install -d $(DATA_ROOT_DIR_PURPLE)/pixmaps/pidgin/protocols/$$z ; \
+		install -m 0644 img/slack$$z.png $(DATA_ROOT_DIR_PURPLE)/pixmaps/pidgin/protocols/$$z/slack.png ; \
+	done
 
 install-user: $(LIBNAME)
 	install -D $(LIBNAME) $(HOME)/.purple/plugins/$(LIBNAME)

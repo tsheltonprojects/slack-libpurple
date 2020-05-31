@@ -137,30 +137,29 @@ GList *slack_blist_node_menu(PurpleBlistNode *buddy) {
 struct roomlist_expand {
 	PurpleRoomlist *list;
 	PurpleRoomlistRoom *parent;
-	SlackChannelType type;
-	gboolean archived;
 };
 
-void free_roomlist_expand(struct roomlist_expand *expand) {
-	purple_roomlist_unref(expand->list);
-	g_free(expand);
-}
+#define ROOMLIST_CALL(sa, expand, ARGS...) \
+	slack_api_call(sa, roomlist_cb, expand, "conversations.list", "exclude_archived", expand->parent ? "false" : "true", "type", "public_channel,private_channel,mpim,im", SLACK_PAGINATE_LIMIT, ##ARGS, NULL)
 
 static gboolean roomlist_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	struct roomlist_expand *expand = data;
 
-	json = json_get_prop_type(json, expand->type >= SLACK_CHANNEL_GROUP ? "groups" : "channels", array);
-	if (!json || error) {
-		purple_notify_error(sa->gc, "Channel list error", "Could not read channel list", error);
-		free_roomlist_expand(expand);
-		return FALSE;
-	}
+	char *cursor = json_get_prop_strptr(json_get_prop(json, "response_metadata"), "next_cursor");
+	json = json_get_prop_type(json, "channels", array);
 
+	if (sa->roomlist_stop)
+		json = NULL;
+	else if (!json || error) {
+		purple_notify_error(sa->gc, "Channel list error", "Could not read channel list", error);
+		json = NULL;
+	}
+	else
 	for (unsigned i = 0; i < json->u.array.length; i++) {
 		json_value *chan = json->u.array.values[i];
 
 		gboolean archived = json_get_prop_boolean(chan, "is_archived", FALSE) || json_get_prop_boolean(chan, "is_deleted", FALSE);
-		if (archived != expand->archived)
+		if (expand->parent && !archived)
 			continue;
 
 		PurpleRoomlistRoom *room = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_ROOM, json_get_prop_strptr(chan, "name"), expand->parent);
@@ -175,51 +174,36 @@ static gboolean roomlist_cb(SlackAccount *sa, gpointer data, json_value *json, c
 		purple_roomlist_room_add(expand->list, room);
 	}
 
-	free_roomlist_expand(expand);
+	if (json && cursor && *cursor)
+		ROOMLIST_CALL(sa, expand, "cursor", cursor);
+	else {
+		purple_roomlist_set_in_progress(expand->list, FALSE);
+		purple_roomlist_unref(expand->list);
+		g_free(expand);
+	}
+
 	return FALSE;
 }
+
 
 void slack_roomlist_expand_category(PurpleRoomlist *list, PurpleRoomlistRoom *parent) {
 	SlackAccount *sa = get_slack_account(list->account);
 	if (!sa)
 		return;
 
-	g_warn_if_fail(list == sa->roomlist);
-
+	sa->roomlist_stop = FALSE;
 	struct roomlist_expand *expand = g_new0(struct roomlist_expand, 1);
 	expand->list = list;
 	expand->parent = parent;
-	const char *cat = purple_roomlist_room_get_name(parent);
-	if (!g_strcmp0(cat, "Archived") && parent->parent) {
-		expand->archived = TRUE;
-		cat = purple_roomlist_room_get_name(parent->parent);
-	}
-	const char *op;
-	if (!g_strcmp0(cat, "Public Channels")) {
-		expand->type = SLACK_CHANNEL_PUBLIC;
-		op = "channels.list";
-	}
-	else if (!g_strcmp0(cat, "Private Channels")) {
-		expand->type = SLACK_CHANNEL_GROUP;
-		op = "groups.list";
-	}
-	else if (!g_strcmp0(cat, "Multiparty Direct Messages")) {
-		expand->type = SLACK_CHANNEL_MPIM;
-		op = "mpim.list";
-	}
-	else
-		return;
 	purple_roomlist_ref(list);
-	slack_api_call(sa, roomlist_cb, expand, op, "exclude_archived", expand->archived ? "false" : "true", "exclude_members", "true", NULL);
+	purple_roomlist_set_in_progress(list, TRUE);
+	ROOMLIST_CALL(sa, expand);
 }
 
 PurpleRoomlist *slack_roomlist_get_list(PurpleConnection *gc) {
 	SlackAccount *sa = gc->proto_data;
 
-	if (sa->roomlist)
-		purple_roomlist_unref(sa->roomlist);
-
-	PurpleRoomlist *list = sa->roomlist = purple_roomlist_new(sa->account);
+	PurpleRoomlist *list = purple_roomlist_new(sa->account);
 
 	GList *fields = NULL;
 	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_STRING, "ID", "id", TRUE));
@@ -230,14 +214,10 @@ PurpleRoomlist *slack_roomlist_get_list(PurpleConnection *gc) {
 	fields = g_list_append(fields, purple_roomlist_field_new(PURPLE_ROOMLIST_FIELD_STRING, "Creator", "creator", FALSE));
 	purple_roomlist_set_fields(list, fields);
 
-	PurpleRoomlistRoom *public = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_CATEGORY, "Public Channels", NULL);
-	purple_roomlist_room_add(list, public);
-	PurpleRoomlistRoom *private = purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_CATEGORY, "Private Channels", NULL);
-	purple_roomlist_room_add(list, private);
-	purple_roomlist_room_add(list, purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_CATEGORY, "Multiparty Direct Messages", NULL));
-	purple_roomlist_room_add(list, purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_CATEGORY, "Archived", public));
-	purple_roomlist_room_add(list, purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_CATEGORY, "Archived", private));
+	purple_roomlist_room_add(list, purple_roomlist_room_new(PURPLE_ROOMLIST_ROOMTYPE_CATEGORY, "Archived", NULL));
 
+	slack_roomlist_expand_category(list, NULL);
+	purple_roomlist_unref(list);
 	return list;
 }
 
@@ -246,8 +226,5 @@ void slack_roomlist_cancel(PurpleRoomlist *list) {
 	if (!sa)
 		return;
 
-	if (sa->roomlist == list) {
-		purple_roomlist_unref(list);
-		sa->roomlist = NULL;
-	}
+	sa->roomlist_stop = TRUE;
 }
