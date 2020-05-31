@@ -366,8 +366,6 @@ static void slack_close(PurpleConnection *gc) {
 
 	slack_api_disconnect(sa);
 
-	if (sa->roomlist)
-		purple_roomlist_unref(sa->roomlist);
 	g_hash_table_destroy(sa->buddies);
 
 	g_hash_table_destroy(sa->channel_cids);
