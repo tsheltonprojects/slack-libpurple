@@ -68,6 +68,9 @@ static PurpleCmdRet send_cmd(PurpleConversation *conv, const gchar *cmd, gchar *
 		return PURPLE_CMD_RET_FAILED;
 
 	SlackObject *obj = slack_conversation_get_conversation(sa, conv);
+	if (!obj)
+		return PURPLE_CMD_RET_FAILED;
+
 	GString *msg = g_string_sized_new(strlen(cmd)+1);
 	g_string_append_c(msg, '/');
 	g_string_append(msg, cmd);
@@ -79,9 +82,42 @@ static PurpleCmdRet send_cmd(PurpleConversation *conv, const gchar *cmd, gchar *
 	return PURPLE_CMD_RET_OK;
 }
 
+static PurpleCmdRet cmd_edit(PurpleConversation *conv, const gchar *cmd, gchar **args, gchar **error, void *data) {
+	SlackAccount *sa = get_slack_account(conv->account);
+	if (!sa)
+		return PURPLE_CMD_RET_FAILED;
+
+	SlackObject *obj = slack_conversation_get_conversation(sa, conv);
+	if (!obj || !obj->last_sent) {
+		*error = g_strdup("No last sent message");
+		return PURPLE_CMD_RET_FAILED;
+	}
+
+	slack_api_call(sa, NULL, NULL, "chat.update", "channel", slack_conversation_id(obj), "ts", obj->last_sent, "as_user", "true", "text", args && args[0] ? args[0] : "", NULL);
+	return PURPLE_CMD_RET_OK;
+}
+
+static PurpleCmdRet cmd_delete(PurpleConversation *conv, const gchar *cmd, gchar **args, gchar **error, void *data) {
+	SlackAccount *sa = get_slack_account(conv->account);
+	if (!sa)
+		return PURPLE_CMD_RET_FAILED;
+
+	SlackObject *obj = slack_conversation_get_conversation(sa, conv);
+	if (!obj || !obj->last_sent) {
+		*error = g_strdup("No last sent message");
+		return PURPLE_CMD_RET_FAILED;
+	}
+
+	slack_api_call(sa, NULL, NULL, "chat.delete", "channel", slack_conversation_id(obj), "ts", obj->last_sent, "as_user", "true", NULL);
+	return PURPLE_CMD_RET_OK;
+}
+
+static GSList *commands = NULL;
+
 void slack_cmd_register() {
 	const char **cmdp = slack_cmds;
 	char cmdbuf[16] = "";
+	PurpleCmdId id;
 	while (*cmdp) {
 		const char *cmd = *cmdp;
 		unsigned i = 0;
@@ -89,8 +125,24 @@ void slack_cmd_register() {
 			cmdbuf[i] = cmd[i];
 		cmdbuf[i] = 0;
 
-		purple_cmd_register(cmdbuf, "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_PRPL_ONLY | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS,
+		id = purple_cmd_register(cmdbuf, "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_PRPL_ONLY | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS,
 				SLACK_PLUGIN_ID, send_cmd, cmd, NULL);
+		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 		cmdp++;
+	}
+
+	id = purple_cmd_register("edit", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+			SLACK_PLUGIN_ID, cmd_edit, "edit [new message]: edit your last message to be new message", NULL);
+	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+
+	id = purple_cmd_register("delete", "", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+			SLACK_PLUGIN_ID, cmd_delete, "delete: remove your last message", NULL);
+	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+}
+
+void slack_cmd_unregister() {
+	while (commands) {
+		purple_cmd_unregister(GPOINTER_TO_UINT(commands->data));
+		commands = g_slist_delete_link(commands, commands);
 	}
 }

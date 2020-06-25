@@ -392,6 +392,18 @@ static void slack_close(PurpleConnection *gc) {
 	gc->proto_data = NULL;
 }
 
+static gboolean slack_load(PurplePlugin *plugin) {
+	slack_cmd_register();
+
+	return TRUE;
+}
+
+static gboolean slack_unload(PurplePlugin *plugin) {
+	slack_cmd_unregister();
+
+	return TRUE;
+}
+
 static PurplePluginProtocolInfo prpl_info = {
 	/* options */
 	OPT_PROTO_CHAT_TOPIC
@@ -488,8 +500,8 @@ static PurplePluginInfo info = {
 	"Slack protocol support for libpurple.",
 	"Dylan Simon <dylan@dylex.net>, Valeriy Golenkov <valery.golenkov@gmail.com>",
 	"http://github.com/dylex/slack-libpurple",
-	NULL,
-	NULL,
+	slack_load,
+	slack_unload,
 	NULL,
 	NULL,
 	&prpl_info,	/* extra info */
@@ -524,8 +536,6 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_int_new("Seconds to delay when ratelimited", "ratelimit_delay", 15));
-
-	slack_cmd_register();
 }
 
 PURPLE_INIT_PLUGIN(slack, init_plugin, info);

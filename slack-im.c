@@ -124,6 +124,10 @@ static void send_im_cb(SlackAccount *sa, gpointer data, json_value *json, const 
 	if (error)
 		purple_conv_present_error(send->user->object.name, sa->account, error);
 
+	if (send->user->object.last_sent)
+		g_free(send->user->object.last_sent);
+	send->user->object.last_sent = g_strdup(json_get_prop_strptr(json, "ts"));
+
 	send_im_free(send);
 }
 

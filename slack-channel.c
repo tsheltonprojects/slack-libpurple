@@ -281,6 +281,11 @@ static void send_chat_cb(SlackAccount *sa, gpointer data, json_value *json, cons
 
 	json_value *ts = json_get_prop(json, "ts");
 	const char *tss = json_get_strptr(ts);
+
+	if (send->chan->object.last_sent)
+		g_free(send->chan->object.last_sent);
+	send->chan->object.last_sent = g_strdup(tss);
+
 	/* if we've already received this sent message, don't re-display it (#79) */
 	if (slack_ts_cmp(tss, send->chan->object.last_mesg) != 0) {
 		GString *html = g_string_new(NULL);
@@ -289,6 +294,7 @@ static void send_chat_cb(SlackAccount *sa, gpointer data, json_value *json, cons
 		serv_got_chat_in(sa->gc, send->cid, purple_connection_get_display_name(sa->gc), send->flags, html->str, mt);
 		g_string_free(html, TRUE);
 	}
+
 	send_chat_free(send);
 }
 
