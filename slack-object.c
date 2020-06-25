@@ -15,6 +15,10 @@ static void slack_object_finalize(GObject *gobj) {
 	SlackObject *obj = SLACK_OBJECT(gobj);
 
 	g_free(obj->name);
+	g_free(obj->last_mesg);
+	g_free(obj->last_read);
+	g_free(obj->last_mark);
+	g_free(obj->last_sent);
 }
 
 static void slack_object_class_init(SlackObjectClass *klass) {

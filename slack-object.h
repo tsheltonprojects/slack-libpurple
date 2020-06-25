@@ -44,7 +44,7 @@ struct _SlackObject {
 	char *name;
 	PurpleBlistNode *buddy;
 
-	char *last_mesg, *last_read, *last_mark; /* ts marking */
+	char *last_mesg, *last_read, *last_mark, *last_sent; /* ts marking */
 	struct _SlackObject *mark_next; /* on mark_list if non-null */
 };
 
