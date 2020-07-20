@@ -381,7 +381,7 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 
 	if (!g_strcmp0(subtype, "me_message"))
 		g_string_append(html, "/me ");
-	else if (subtype && flags)
+	else if (flags && subtype && strcmp(subtype, "thread_broadcast") != 0)
 		*flags |= PURPLE_MESSAGE_SYSTEM;
 
 	const char *thread = json_get_prop_strptr(message, "thread_ts");
