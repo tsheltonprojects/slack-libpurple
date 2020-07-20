@@ -16,4 +16,8 @@ void slack_api_disconnect(SlackAccount *sa);
 
 #define SLACK_PAGINATE_LIMIT	"limit", "500"
 
+// Documented as maximum in API (2020-07-20).
+#define SLACK_HISTORY_LIMIT_NUM 1000
+#define SLACK_HISTORY_LIMIT "limit", "1000"
+
 #endif
