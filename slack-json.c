@@ -46,6 +46,11 @@ GString *append_json_string(GString *str, const char *s) {
 	return g_string_append_c(str, '"');
 }
 
+time_t slack_parse_time_str(const char *str) {
+	/* "EPOCH.0000ID", atol is sufficient */
+	return atol(str);
+}
+
 time_t slack_parse_time(json_value *val) {
 	if (!val)
 		return 0;
@@ -54,7 +59,6 @@ time_t slack_parse_time(json_value *val) {
 	if (val->type == json_double)
 		return val->u.dbl;
 	if (val->type == json_string)
-		/* "EPOCH.0000ID", atol is sufficient */
-		return atol(val->u.string.ptr);
+		return slack_parse_time_str(val->u.string.ptr);
 	return 0;
 }

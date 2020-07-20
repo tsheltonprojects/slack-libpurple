@@ -16,6 +16,15 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *json, Purpl
  */
 void slack_handle_message(SlackAccount *sa, SlackObject *conv, json_value *json, PurpleMessageFlags flags);
 
+/**
+ * Returns a deterministic color for a thread.
+ *
+ * Returned string must be g_string_free'd.
+ *
+ * @param ts "thread_ts" string value from Slack.
+ */
+GString *slack_get_thread_color(const char *ts);
+
 /* RTM event handlers */
 gboolean slack_message(SlackAccount *sa, json_value *json);
 void slack_user_typing(SlackAccount *sa, json_value *json);

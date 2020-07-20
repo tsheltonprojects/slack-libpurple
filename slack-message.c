@@ -9,6 +9,45 @@
 #include "slack-conversation.h"
 #include "slack-message.h"
 
+GString *slack_get_thread_color(const char *ts) {
+	// Produce a color that works against white background by the following
+	// algorithm:
+	//
+	// 1. Pick a pseudo-random number by seeding it with ts, IOW it is
+	// deterministic.
+	//
+	// 2. Pick a 24-bit RGB value, but throw away the the original highest
+	// bit of each byte, resulting in a range from 000000 to 7f7f7f.
+	//
+	// 3. Pick exactly one base color that will receive its highest bit, or
+	// possibly none of them.
+	//
+	// This gives quite a random color, but often with a dominant RGB
+	// component, never white, and deterministic from ts.
+
+	unsigned int seed = slack_parse_time_str(ts);
+	char *dot = strchr(ts, '.');
+	if (dot)
+		seed ^= atol(dot + 1);
+
+	GString *tmp = g_string_sized_new(7);
+
+	unsigned int r = rand_r(&seed);
+
+	// Pick random RGB color.
+	unsigned int color = r & 0x7f7f7f;
+
+	// Pick random RGB high bit by shifting 0x800000 down by 0 (B), 8 (G),
+	// 16 (R), or 24 (0). 0x3000000 are the first bits of 'r' we didn't use
+	// yet.
+	unsigned int pref_color = (0x800000 >> ((r & 0x3000000) >> 21));
+	color |= pref_color;
+
+	g_string_printf(tmp, "%06x", color);
+
+	return tmp;
+}
+
 gchar *slack_html_to_message(SlackAccount *sa, const char *s, PurpleMessageFlags flags) {
 
 	if (flags & PURPLE_MESSAGE_RAW)
@@ -345,11 +384,19 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 	else if (subtype && flags)
 		*flags |= PURPLE_MESSAGE_SYSTEM;
 
-	json_value *thread = json_get_prop(message, "thread_ts");
+	const char *thread = json_get_prop_strptr(message, "thread_ts");
 	if (thread) {
-		time_t tt = slack_parse_time(thread);
+		time_t tt = slack_parse_time_str(thread);
+		GString *color = slack_get_thread_color(thread);
+
+		g_string_append(html, "<font color=\"#");
+		g_string_append(html, color->str);
+		g_string_append(html, "\">");
 		g_string_append(html, purple_time_format(localtime(&tt)));
+		g_string_append(html, "</font>");
 		g_string_append(html, "⤷  ");
+
+		g_string_free(color, TRUE);
 	}
 
 	slack_message_to_html(html, sa, json_get_prop_strptr(message, "text"), flags, NULL);
