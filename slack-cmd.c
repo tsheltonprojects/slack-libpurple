@@ -6,7 +6,7 @@
 #include "slack-conversation.h"
 #include "slack-cmd.h"
 
-/* really all commands are handled server-side, but OPT_PROTO_SLACK_COMMANDS_NATIVE doesn't quite work right (when the same command is registered for other things), so we defensively register a trivial handler for at least all the builtin commands.
+/* really most commands are handled server-side, but OPT_PROTO_SLACK_COMMANDS_NATIVE doesn't quite work right (when the same command is registered for other things), so we defensively register a trivial handler for at least all the builtin commands.
  * copied from https://get.slack.help/hc/en-us/articles/201259356-using-slash-commands */
 static const char *slack_cmds[] = {
 	"me [your text]:  Display italicized action text, e.g. \"/me does a dance\" will display as \"does a dance\"",
@@ -112,6 +112,49 @@ static PurpleCmdRet cmd_delete(PurpleConversation *conv, const gchar *cmd, gchar
 	return PURPLE_CMD_RET_OK;
 }
 
+static PurpleCmdRet cmd_thread(PurpleConversation *conv, const gchar *cmd, gchar **args, gchar **error, void *data) {
+	SlackAccount *sa = get_slack_account(conv->account);
+	if (!sa)
+		return PURPLE_CMD_RET_FAILED;
+
+	SlackObject *obj = slack_conversation_get_conversation(sa, conv);
+	if (!obj) {
+		return PURPLE_CMD_RET_FAILED;
+	}
+
+	if (!args || !args[0]) {
+		slack_thread_switch_to_latest(sa, obj);
+		return PURPLE_CMD_RET_OK;
+	}
+
+	gchar *line = g_strdup(args[0]);
+	gchar **split = g_strsplit(line, " ", 2);
+	if (split[0] == NULL)
+		slack_thread_switch_to_latest(sa, obj);
+	else if (split[0][0] == '/') {
+		if (split[0][1] != '\0')
+			slack_write_message(sa, obj, "thread: First argument must be '/' or a valid timestamp", PURPLE_MESSAGE_SYSTEM);
+		else {
+			if (split[1] == NULL) {
+				slack_thread_switch_to_channel(sa, obj);
+			} else {
+				slack_thread_post_to_channel(sa, obj, split[1]);
+			}
+		}
+	} else {
+		if (split[1] == NULL) {
+			slack_thread_switch_to_timestamp(sa, obj, split[0]);
+		} else {
+			slack_thread_post_to_timestamp(sa, obj, split[0], split[1]);
+		}
+	}
+
+	g_strfreev(split);
+	g_free(line);
+
+	return PURPLE_CMD_RET_OK;
+}
+
 static GSList *commands = NULL;
 
 void slack_cmd_register() {
@@ -138,6 +181,29 @@ void slack_cmd_register() {
 	id = purple_cmd_register("delete", "", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
 			SLACK_PLUGIN_ID, cmd_delete, "delete: remove your last message", NULL);
 	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+
+	// Make sure the number of %s matches the printfs further down.
+	const char *thread_fmt = "%s [thread-timestamp [message]]:  Post messages in threads.\n"
+			"This command can be used in several ways. One can either switch focus to a thread, causing all messages to be "
+			"posted to that thread, or post single messages to a thread. See these usage examples:\n"
+			"- /%s thread-timestamp:  Switch to thread with given timestamp.\n"
+			"- /%s /:  Switch back to channel.\n"
+			"- /%s:  Switch to the thread of the latest message. Switches to main channel if the latest reply was not threaded.\n"
+			"- /%s thread-timestamp message:  Post single message to the thread with the given timestamp.\n"
+			"- /%s / message:  Post single message to main channel.";
+	GString *thread_help = g_string_new(NULL);
+
+	g_string_printf(thread_help, thread_fmt, "th", "th", "th", "th", "th", "th", "th");
+	id = purple_cmd_register("th", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY |
+			PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS, SLACK_PLUGIN_ID, cmd_thread, thread_help->str, NULL);
+	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+
+	g_string_printf(thread_help, thread_fmt, "thread", "thread", "thread", "thread", "thread", "thread", "thread");
+	id = purple_cmd_register("thread", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY |
+			PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS, SLACK_PLUGIN_ID, cmd_thread, thread_help->str, NULL);
+	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+
+	g_string_free(thread_help, TRUE);
 }
 
 void slack_cmd_unregister() {

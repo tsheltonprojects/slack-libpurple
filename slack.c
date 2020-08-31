@@ -160,9 +160,20 @@ static guint slack_conversation_send_typing(PurpleConversation *conv, PurpleTypi
 	
 	if (!obj)
 		return 0;
+
+	SlackChannel *chan;
+	if (SLACK_IS_CHANNEL(obj))
+		chan = (SlackChannel *)obj;
+	else {
+		purple_debug_error("slack", "Could not convert to channel object. Should not happen.\n");
+		return 0;
+	}
 	
 	GString *channel = append_json_string(g_string_new(NULL), slack_conversation_id(obj));
-	slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, NULL);
+	if (chan->thread->thread_ts)
+		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, "thread_ts", chan->thread->thread_ts, NULL);
+	else
+		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, NULL);
 	g_string_free(channel, TRUE);
 	
 	return 3;

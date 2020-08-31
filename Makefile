@@ -5,6 +5,7 @@ C_SRCS = slack.c \
 	 slack-conversation.c \
 	 slack-channel.c \
 	 slack-im.c \
+	 slack-thread.c \
 	 slack-user.c \
 	 slack-rtm.c \
 	 slack-blist.c \
@@ -40,6 +41,7 @@ CFLAGS = \
     -O2 \
     -Wall \
     -D_DEFAULT_SOURCE=1 \
+    -D_XOPEN_SOURCE=1 \
     -std=c99 \
 	-I$(PIDGIN_TREE_TOP)/libpurple \
 	-I$(WIN32_DEV_TOP)/glib-2.28.8/include -I$(WIN32_DEV_TOP)/glib-2.28.8/include/glib-2.0 -I$(WIN32_DEV_TOP)/glib-2.28.8/lib/glib-2.0/include
@@ -61,6 +63,7 @@ CFLAGS = \
     -Wno-error=strict-aliasing \
     -fPIC \
     -D_DEFAULT_SOURCE=1 \
+    -D_XOPEN_SOURCE=1 \
     -std=c99 \
     $(shell pkg-config --cflags $(PKGS)) \
     $(LOCAL_CFLAGS)

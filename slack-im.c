@@ -138,6 +138,11 @@ static void send_im_cb(SlackAccount *sa, gpointer data, json_value *json, const 
 	send_im_free(send);
 }
 
+static gboolean send_im_api_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	send_im_cb(sa, data, json, error);
+	return FALSE;
+}
+
 static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	struct send_im *send = data;
 
@@ -151,11 +156,16 @@ static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *jso
 		return FALSE;
 	}
 
-	GString *channel = append_json_string(g_string_new(NULL), send->user->im);
-	GString *text = append_json_string(g_string_new(NULL), send->msg);
-	slack_rtm_send(sa, send_im_cb, send, "message", "channel", channel->str, "text", text->str, NULL);
-	g_string_free(channel, TRUE);
-	g_string_free(text, TRUE);
+	if (send->user->thread->thread_ts)
+		slack_api_post(sa, send_im_api_cb, send, "chat.postMessage", "channel", send->user->im, "text", send->msg,
+				"thread_ts", send->user->thread->thread_ts, "as_user", "true", NULL);
+	else {
+		GString *channel = append_json_string(g_string_new(NULL), send->user->im);
+		GString *text = append_json_string(g_string_new(NULL), send->msg);
+		slack_rtm_send(sa, send_im_cb, send, "message", "channel", channel->str, "text", text->str, NULL);
+		g_string_free(channel, TRUE);
+		g_string_free(text, TRUE);
+	}
 	return FALSE;
 }
 

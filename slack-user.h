@@ -4,6 +4,7 @@
 #include "json.h"
 #include "slack-object.h"
 #include "slack.h"
+#include "slack-thread.h"
 
 /* SlackUser represents both a user object, and an optional im object */
 struct _SlackUser {
@@ -15,6 +16,8 @@ struct _SlackUser {
 
 	/* when there is an open IM channel: */
 	slack_object_id im; /* in ims */
+
+	SlackThread *thread;
 };
 
 #define SLACK_TYPE_USER slack_user_get_type()

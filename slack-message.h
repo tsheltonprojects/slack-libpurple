@@ -9,7 +9,14 @@ gchar *slack_html_to_message(SlackAccount *sa, const char *s, PurpleMessageFlags
 void slack_message_to_html(GString *html, SlackAccount *sa, gchar *s, PurpleMessageFlags *flags, gchar *prepend_newline_str);
 void slack_json_to_html(GString *html, SlackAccount *sa, json_value *json, PurpleMessageFlags *flags);
 /**
- * Display a message
+ * Display a pre-formatted string message
+ *
+ * @param html the HTML formatted message
+ * @param flags additional flags for message
+ */
+void slack_write_message(SlackAccount *sa, SlackObject *obj, const char *html, PurpleMessageFlags flags);
+/**
+ * Display a JSON message
  *
  * @param json the json message object (should contain "subtype" field)
  * @param flags additional flags for message

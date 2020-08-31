@@ -14,7 +14,9 @@
 G_DEFINE_TYPE(SlackChannel, slack_channel, SLACK_TYPE_OBJECT);
 
 static void slack_channel_finalize(GObject *gobj) {
-	// SlackChannel *chan = SLACK_CHANNEL(gobj);
+	SlackChannel *chan = SLACK_CHANNEL(gobj);
+
+        g_object_unref(chan->thread);
 
 	G_OBJECT_CLASS(slack_channel_parent_class)->finalize(gobj);
 }
@@ -25,6 +27,7 @@ static void slack_channel_class_init(SlackChannelClass *klass) {
 }
 
 static void slack_channel_init(SlackChannel *self) {
+	self->thread = g_object_new(SLACK_TYPE_THREAD, NULL);
 }
 
 PurpleConvChat *slack_channel_get_conversation(SlackAccount *sa, SlackChannel *chan) {
@@ -298,6 +301,11 @@ static void send_chat_cb(SlackAccount *sa, gpointer data, json_value *json, cons
 	send_chat_free(send);
 }
 
+static gboolean send_chat_api_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	send_chat_cb(sa, data, json, error);
+	return FALSE;
+}
+
 int slack_chat_send(PurpleConnection *gc, int cid, const char *msg, PurpleMessageFlags flags) {
 	SlackAccount *sa = gc->proto_data;
 
@@ -315,11 +323,16 @@ int slack_chat_send(PurpleConnection *gc, int cid, const char *msg, PurpleMessag
 	send->cid = cid;
 	send->flags = flags;
 
-	GString *channel = append_json_string(g_string_new(NULL), chan->object.id);
-	GString *text = append_json_string(g_string_new(NULL), m);
-	slack_rtm_send(sa, send_chat_cb, send, "message", "channel", channel->str, "text", text->str, NULL);
-	g_string_free(channel, TRUE);
-	g_string_free(text, TRUE);
+	if (chan->thread->thread_ts)
+		slack_api_post(sa, send_chat_api_cb, send, "chat.postMessage", "channel", chan->object.id, "text", m,
+				"thread_ts", chan->thread->thread_ts, "as_user", "true", NULL);
+	else {
+		GString *channel = append_json_string(g_string_new(NULL), chan->object.id);
+		GString *text = append_json_string(g_string_new(NULL), m);
+		slack_rtm_send(sa, send_chat_cb, send, "message", "channel", channel->str, "text", text->str, NULL);
+		g_string_free(channel, TRUE);
+		g_string_free(text, TRUE);
+	}
 	g_free(m);
 
 	return 1;

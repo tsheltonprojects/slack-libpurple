@@ -1,5 +1,6 @@
 #include <debug.h>
 #include <version.h>
+#include <sys/time.h>
 
 #include "slack-json.h"
 #include "slack-rtm.h"
@@ -387,12 +388,26 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 	const char *thread = json_get_prop_strptr(message, "thread_ts");
 	if (thread) {
 		time_t tt = slack_parse_time_str(thread);
+		time_t now = time(NULL);
+		struct tm now_time, thread_time;
+		localtime_r(&tt, &thread_time);
+		localtime_r(&now, &now_time);
+		const char *time_fmt;
+
 		GString *color = slack_get_thread_color(thread);
+
+		if (thread_time.tm_yday != now_time.tm_yday || thread_time.tm_year != now_time.tm_year)
+			time_fmt = "%x-%X";
+		else
+			time_fmt = "%X";
+
+		char time_str[100];
+		strftime(time_str, sizeof(time_str), time_fmt, &thread_time);
 
 		g_string_append(html, "<font color=\"#");
 		g_string_append(html, color->str);
 		g_string_append(html, "\">");
-		g_string_append(html, purple_time_format(localtime(&tt)));
+		g_string_append(html, time_str);
 		g_string_append(html, "</font>");
 		g_string_append(html, "⤷  ");
 
@@ -411,6 +426,35 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 	if (attachments)
 		for (i=0; i < attachments->u.array.length; i++)
 			slack_attachment_to_html(html, sa, attachments->u.array.values[i]);
+}
+
+void slack_write_message(SlackAccount *sa, SlackObject *obj, const char *html, PurpleMessageFlags flags) {
+	if (!obj) {
+		return;
+	}
+
+	SlackUser *user = sa->self;
+	flags |= PURPLE_MESSAGE_SEND;
+
+	struct timeval tv = { 0, 0 };
+	gettimeofday(&tv, NULL);
+	time_t mt = tv.tv_sec;
+
+	if (SLACK_IS_CHANNEL(obj)) {
+		SlackChannel *chan = (SlackChannel*)obj;
+		/* Channel */
+		if (!chan->cid) {
+			if (!purple_account_get_bool(sa->account, "open_chat", FALSE)) {
+				return;
+			}
+			slack_chat_open(sa, chan);
+		}
+
+		serv_got_chat_in(sa->gc, chan->cid, user->object.name, flags, html, mt);
+	} else if (SLACK_IS_USER(obj)) {
+		SlackUser *im = (SlackUser*)obj;
+		serv_got_im(sa->gc, im->object.name, html, flags, mt);
+	}
 }
 
 void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, PurpleMessageFlags flags) {
@@ -600,7 +644,10 @@ unsigned int slack_send_typing(PurpleConnection *gc, const char *who, PurpleTypi
 		return 0;
 
 	GString *channel = append_json_string(g_string_new(NULL), user->im);
-	slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, NULL);
+	if (user->thread->thread_ts)
+		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, "thread_ts", user->thread->thread_ts, NULL);
+	else
+		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, NULL);
 	g_string_free(channel, TRUE);
 
 	return 3;
