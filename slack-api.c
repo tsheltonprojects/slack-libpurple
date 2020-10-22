@@ -25,11 +25,6 @@ struct _SlackAPICall {
 	SlackAPICall **prev, *next;
 };
 
-typedef struct _SlackUrlAndRequest {
-	GString *url;
-	GString *request;
-} SlackUrlAndRequest;
-
 static void api_error(SlackAPICall *call, const char *error) {
 	if ((*call->prev = call->next))
 		call->next->prev = call->prev;
@@ -105,70 +100,43 @@ static GString *slack_api_encode_url(SlackAccount *sa, const char *pfx, const ch
 	return url;
 }
 
-static GString *slack_api_escape_quotes(const char *str) {
-	GString *escaped = g_string_new(NULL);
-	for (size_t i = 0; str[i] != '\0'; i++) {
-		switch (str[i]) {
-		case '"':
-			g_string_append(escaped, "\\\"");
-			break;
-		case '\\':
-			g_string_append(escaped, "\\\\");
-			break;
-		default:
-			g_string_append_c(escaped, str[i]);
-			break;
-		}
-	}
-	return escaped;
-}
-
-static SlackUrlAndRequest slack_api_encode_url_and_post_request(SlackAccount *sa, const char *endpoint, va_list qargs) {
-	GString *url = g_string_new(NULL);
-	g_string_printf(url, "%s/%s", sa->api_url, endpoint);
+static char *slack_api_encode_post_request(SlackAccount *sa, const char *url, va_list qargs) {
+	GString *request;
+	gchar *host = NULL, *path = NULL;
+	purple_url_parse(url, &host, NULL, &path, NULL, NULL);
 
 	GString *postdata;
 	const char *param;
-	const char *sep = "";
+	gboolean sep = FALSE;
 
 	postdata = g_string_new("{");
 	while ((param = va_arg(qargs, const char*))) {
 		const char *val = va_arg(qargs, const char*);
-		GString *escaped = slack_api_escape_quotes(val);
-		g_string_append_printf(postdata, "%s\"%s\":\"%s\"", sep, param, escaped->str);
-		g_string_free(escaped, TRUE);
-		sep = ",";
+		if (sep)
+			g_string_append_c(postdata, ',');
+		append_json_string(postdata, param);
+		g_string_append_c(postdata, ':');
+		append_json_string(postdata, val);
+		sep = TRUE;
 	}
-
 	g_string_append_c(postdata, '}');
 
-	GString *request;
-	gchar *host = NULL, *path = NULL, *user = NULL, *password = NULL;
-	int port;
-	purple_url_parse(url->str, &host, &port, &path, &user, &password);
-
 	request = g_string_new(NULL);
-
-	g_string_append_printf(request, "POST /%s HTTP/1.0\r\n", path);
-	g_string_append(request, "Connection: close\r\n");
-	g_string_append_printf(request, "Host: %s\r\n", host);
-	g_string_append(request, "Accept: */*\r\n");
-	g_string_append_printf(request, "Authorization: Bearer %s\r\n", sa->token);
-	g_string_append(request, "Content-Type: application/json\r\n");
-
-	g_string_append_printf(request, "Content-Length: %" G_GSIZE_FORMAT "\r\n", strlen(postdata->str));
-	g_string_append(request, "\r\n");
-
+	g_string_append_printf(request, "\
+POST /%s HTTP/1.0\r\n\
+Host: %s\r\n\
+Authorization: Bearer %s\r\n\
+Content-Type: application/json;charset=utf-8\r\n\
+Content-Length: %" G_GSIZE_FORMAT "\r\n\
+\r\n",
+		path, host, sa->token, postdata->len);
 	g_string_append(request, postdata->str);
 
 	g_free(host);
 	g_free(path);
-	g_free(user);
-	g_free(password);
 	g_string_free(postdata, TRUE);
 
-	SlackUrlAndRequest ret = {url, request};
-	return ret;
+	return g_string_free(request, FALSE);
 }
 
 static void slack_api_call_url(SlackAccount *sa, SlackAPICallback callback, gpointer user_data, const char *url, const char *request) {
@@ -176,17 +144,14 @@ static void slack_api_call_url(SlackAccount *sa, SlackAPICallback callback, gpoi
 	call->sa = sa;
 	call->callback = callback;
 	call->url = g_strdup(url);
-	if (request)
-		call->request = g_strdup(request);
-	else
-		call->request = NULL;
+	call->request = g_strdup(request);
 	call->data = user_data;
 	if ((call->next = sa->api_calls))
 		call->next->prev = &call->next;
 	call->prev = &sa->api_calls;
 	sa->api_calls = call;
 
-	purple_debug_misc("slack", "api call: %s\nRequest: %s\n", url, request ?: "Default");
+	purple_debug_misc("slack", "api call: %s\n%s\n", url, request ?: "");
 	api_retry(call);
 }
 
@@ -204,15 +169,18 @@ void slack_api_get(SlackAccount *sa, SlackAPICallback callback, gpointer user_da
 
 void slack_api_post(SlackAccount *sa, SlackAPICallback callback, gpointer user_data, const gchar *endpoint, ...)
 {
+	GString *url = g_string_new(NULL);
+	g_string_printf(url, "%s/%s", sa->api_url, endpoint);
+
 	va_list qargs;
 	va_start(qargs, endpoint);
-	SlackUrlAndRequest url_and_request = slack_api_encode_url_and_post_request(sa, endpoint, qargs);
+	char *request = slack_api_encode_post_request(sa, url->str, qargs);
 	va_end(qargs);
 
-	slack_api_call_url(sa, callback, user_data, url_and_request.url->str, url_and_request.request->str);
+	slack_api_call_url(sa, callback, user_data, url->str, request);
 
-	g_string_free(url_and_request.url, TRUE);
-	g_string_free(url_and_request.request, TRUE);
+	g_string_free(url, TRUE);
+  	g_free(request);
 }
 
 gboolean slack_api_channel_get(SlackAccount *sa, SlackAPICallback callback, gpointer user_data, SlackObject *obj, const char *endpoint, ...) {

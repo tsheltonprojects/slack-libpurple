@@ -112,7 +112,7 @@ static gboolean mark_conversation_timer(gpointer data) {
 		obj->mark_next = NULL;
 		g_free(obj->last_mark);
 		obj->last_mark = g_strdup(obj->last_read);
-		/* XXX conversations.mark call??? */
+		/* XXX conversations.mark call??? also should use POST */
 		slack_api_channel_get(sa, NULL, NULL, obj, "mark", "ts", obj->last_mark, NULL);
 	}
 
