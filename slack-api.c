@@ -183,47 +183,6 @@ void slack_api_post(SlackAccount *sa, SlackAPICallback callback, gpointer user_d
   	g_free(request);
 }
 
-gboolean slack_api_channel_get(SlackAccount *sa, SlackAPICallback callback, gpointer user_data, SlackObject *obj, const char *endpoint, ...) {
-	g_return_val_if_fail(obj, FALSE);
-	const char *type = NULL, *id = NULL;
-	if (SLACK_IS_CHANNEL(obj)) {
-		SlackChannel *chan = (SlackChannel*)obj;
-		switch (chan->type) {
-			case SLACK_CHANNEL_MEMBER:
-				type = "channels.";
-				break;
-			case SLACK_CHANNEL_GROUP:
-				type = "groups.";
-				break;
-			case SLACK_CHANNEL_MPIM:
-				type = "mpim.";
-				break;
-			default:
-				break;
-		}
-		id = chan->object.id;
-	} else if (SLACK_IS_USER(obj)) {
-		SlackUser *user = (SlackUser*)obj;
-		if (*user->im) {
-			type = "im.";
-			id = user->im;
-		}
-	}
-
-	if (!type || !id)
-		return FALSE;
-
-	va_list qargs;
-	va_start(qargs, endpoint);
-	GString *url = slack_api_encode_url(sa, type, endpoint, qargs);
-	va_end(qargs);
-	g_string_append_printf(url, "&channel=%s", purple_url_encode(id));
-
-	slack_api_call_url(sa, callback, user_data, url->str, NULL);
-	g_string_free(url, TRUE);
-	return TRUE;
-}
-
 void slack_api_disconnect(SlackAccount *sa) {
 	while (sa->api_calls) {
 		purple_util_fetch_url_cancel(sa->api_calls->fetch);
