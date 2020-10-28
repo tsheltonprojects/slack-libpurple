@@ -49,6 +49,34 @@ GString *slack_get_thread_color(const char *ts) {
 	return tmp;
 }
 
+void slack_append_formatted_thread_timestamp(GString *str, const char *ts) {
+	time_t tt = slack_parse_time_str(ts);
+	time_t now = time(NULL);
+	struct tm now_time, thread_time;
+	localtime_r(&tt, &thread_time);
+	localtime_r(&now, &now_time);
+	const char *time_fmt;
+
+	GString *color = slack_get_thread_color(ts);
+
+	if (thread_time.tm_yday != now_time.tm_yday || thread_time.tm_year != now_time.tm_year)
+		time_fmt = "%x-%X";
+	else
+		time_fmt = "%X";
+
+	char time_str[100];
+	strftime(time_str, sizeof(time_str), time_fmt, &thread_time);
+
+	g_string_append(str, "<font color=\"#");
+	g_string_append(str, color->str);
+	g_string_append(str, "\">");
+	g_string_append(str, time_str);
+	g_string_append(str, "</font>");
+	g_string_append(str, "⤷  ");
+
+	g_string_free(color, TRUE);
+}
+
 gchar *slack_html_to_message(SlackAccount *sa, const char *s, PurpleMessageFlags flags) {
 
 	if (flags & PURPLE_MESSAGE_RAW)
@@ -387,31 +415,7 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 
 	const char *thread = json_get_prop_strptr(message, "thread_ts");
 	if (thread) {
-		time_t tt = slack_parse_time_str(thread);
-		time_t now = time(NULL);
-		struct tm now_time, thread_time;
-		localtime_r(&tt, &thread_time);
-		localtime_r(&now, &now_time);
-		const char *time_fmt;
-
-		GString *color = slack_get_thread_color(thread);
-
-		if (thread_time.tm_yday != now_time.tm_yday || thread_time.tm_year != now_time.tm_year)
-			time_fmt = "%x-%X";
-		else
-			time_fmt = "%X";
-
-		char time_str[100];
-		strftime(time_str, sizeof(time_str), time_fmt, &thread_time);
-
-		g_string_append(html, "<font color=\"#");
-		g_string_append(html, color->str);
-		g_string_append(html, "\">");
-		g_string_append(html, time_str);
-		g_string_append(html, "</font>");
-		g_string_append(html, "⤷  ");
-
-		g_string_free(color, TRUE);
+		slack_append_formatted_thread_timestamp(html, thread);
 	}
 
 	slack_message_to_html(html, sa, json_get_prop_strptr(message, "text"), flags, NULL);
@@ -462,8 +466,18 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		purple_debug_warning("slack", "Message to unknown channel %s\n", json_get_prop_strptr(json, "channel"));
 		return;
 	}
-	const char *subtype     = json_get_prop_strptr(json, "subtype");
+
+	gboolean display_threads = purple_account_get_bool(sa->account, "display_threads", TRUE);
+	const char *thread = json_get_prop_strptr(json, "thread_ts");
 	json_value *ts          = json_get_prop(json, "ts");
+	const char *tss = json_get_strptr(ts);
+	const char *subtype = json_get_prop_strptr(json, "subtype");
+
+	if (thread && g_strcmp0(tss, thread) && g_strcmp0(subtype, "thread_broadcast") && !display_threads) {
+		purple_debug_misc("slack", "Thread replies are turned off, ignoring message.\n");
+		return;
+	}
+
 	time_t mt = slack_parse_time(ts);
 	json_value *message     = json;
 	GString *html = g_string_new(NULL);
@@ -489,6 +503,26 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 			slack_json_to_html(html, sa, message, &flags);
 		}
 		g_string_append(html, ")");
+	}
+	else if (!g_strcmp0(subtype, "message_replied")) {
+		// Print a notification for new threads, but do not display
+		// them. If displaying is enabled it will be handled separately
+		// when the message arrives.
+		json_value *submessage = json_get_prop_type(json, "message", object);
+		if (!display_threads && submessage) {
+			int reply_count = json_get_prop_val(submessage, "reply_count", integer, 0);
+			const char *thread = json_get_prop_strptr(submessage, "thread_ts");
+			if (reply_count == 1 && thread) {
+				GString *msg = g_string_new(NULL);
+				slack_append_formatted_thread_timestamp(msg, thread);
+				g_string_append(msg, "⤷ Thread opened on message.");
+				slack_write_message(sa, obj, msg->str, PURPLE_MESSAGE_RECV | PURPLE_MESSAGE_SYSTEM);
+				g_string_free(msg, TRUE);
+			}
+		}
+
+		g_string_free(html, TRUE);
+		return;
 	}
 	else
 		slack_json_to_html(html, sa, message, &flags);
@@ -561,7 +595,6 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 	g_string_free(html, TRUE);
 
 	/* update most recent ts for later marking */
-	const char *tss = json_get_strptr(ts);
 	if (slack_ts_cmp(tss, obj->last_mesg) > 0) {
 		g_free(obj->last_mesg);
 		obj->last_mesg = g_strdup(tss);

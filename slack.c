@@ -561,6 +561,9 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 		purple_account_option_bool_new("Open chat on channel message", "open_chat", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_bool_new("Display thread replies", "display_threads", TRUE));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Retrieve unread IM (*and conversation) history on connect", "load_history", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,

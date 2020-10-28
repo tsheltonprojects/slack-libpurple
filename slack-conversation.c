@@ -267,6 +267,8 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 	if (!list || error) {
 		purple_debug_error("slack", "Error loading channel history: %s\n", error ?: "missing");
 	} else {
+		gboolean display_threads = purple_account_get_bool(sa->account, "display_threads", TRUE);
+
 		// Annoying. Conversations are listed in reverse order,
 		// whereas threads are listed in correct order.
 		for (unsigned i = h->thread_ts ? 1 : list->u.array.length;
@@ -280,7 +282,14 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 			const char *ts = json_get_prop_strptr(msg, "ts");
 			const char *thread_ts = json_get_prop_strptr(msg, "thread_ts");
 
-			if (!h->thread_ts && thread_ts) {
+			if (h->thread_ts && !g_strcmp0(ts, thread_ts))
+				// When we are fetching threads, don't display
+				// the parent message, because it has already
+				// been displayed when fetching the non-thread
+				// messages.
+				continue;
+
+			if (display_threads && !h->thread_ts && thread_ts) {
 				const char *latest_reply = json_get_prop_strptr(msg, "latest_reply");
 				if (!latest_reply || !h->since || slack_ts_cmp(latest_reply, h->since) > 0)
 					add_to_get_history_queue(sa, h->conv, h->since, SLACK_HISTORY_LIMIT_NUM, thread_ts);
