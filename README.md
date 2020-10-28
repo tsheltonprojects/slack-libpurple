@@ -44,9 +44,9 @@ Here's how slack concepts are mapped to purple:
 - `/edit <new message>` will edit the last message you sent in a channel/chat to whatever you write. 
 - `/delete` will delete the last message you sent in a channel/chat.
 
-## Future Developments
-- How should we deal with activity in open channels with no conversation?
-
-
-
-
+## Known issues
+- Handling of messages while not connected or not open is not great.
+- The `history` branch has some optional features for fetching history (thanks to @kacf) and dealing with large slacks (`lazy_load` option).
+- Threads are only partially supported (see #118).
+- 2FA and other authentication methods are not supported (#115).
+- The author (@dylex) has only sporadic attention available and is often slow in responding, so community support and contributions are welcome and encouraged (much thanks to @EionRobb, @klali, @zoltan-dulac, @kacf, and others)!
