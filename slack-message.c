@@ -72,7 +72,6 @@ void slack_append_formatted_thread_timestamp(GString *str, const char *ts) {
 	g_string_append(str, "\">");
 	g_string_append(str, time_str);
 	g_string_append(str, "</font>");
-	g_string_append(str, "⤷  ");
 
 	g_string_free(color, TRUE);
 }
@@ -413,12 +412,23 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 	else if (flags && subtype && strcmp(subtype, "thread_broadcast") != 0)
 		*flags |= PURPLE_MESSAGE_SYSTEM;
 
+	const char *ts = json_get_prop_strptr(message, "ts");
 	const char *thread = json_get_prop_strptr(message, "thread_ts");
 	if (thread) {
 		slack_append_formatted_thread_timestamp(html, thread);
+		// If this message is part of a thread, and isn't the parent
+		// message, color it differently to distinguish it from the
+		// channel messages.
+		if (g_strcmp0(ts, thread))
+			g_string_append(html, "⤷  <font color=\"#606060\">");
+		else
+			g_string_append(html, ":  ");
 	}
 
 	slack_message_to_html(html, sa, json_get_prop_strptr(message, "text"), flags, NULL);
+
+	if (thread && g_strcmp0(ts, thread))
+		g_string_append(html, "</font>");
 
 	json_value *files = json_get_prop_type(message, "files", array);
 	if (files)
