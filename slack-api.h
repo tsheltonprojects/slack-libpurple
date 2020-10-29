@@ -14,6 +14,6 @@ void slack_api_get(SlackAccount *sa, SlackAPICallback *callback, gpointer user_d
 void slack_api_post(SlackAccount *sa, SlackAPICallback *callback, gpointer user_data, const char *endpoint, /* const char *query_param1, const char *query_value1, */ ...) G_GNUC_NULL_TERMINATED;
 void slack_api_disconnect(SlackAccount *sa);
 
-#define SLACK_PAGINATE_LIMIT	"limit", "100"
+#define SLACK_PAGINATE_LIMIT	"limit", "500"
 
 #endif
