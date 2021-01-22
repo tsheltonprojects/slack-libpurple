@@ -415,14 +415,24 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 	const char *ts = json_get_prop_strptr(message, "ts");
 	const char *thread = json_get_prop_strptr(message, "thread_ts");
 	if (thread) {
+		if (g_strcmp0(ts, thread))
+			g_string_append(html, "⤷ ");
+		else
+			g_string_append(html, "◈ ");
+
 		slack_append_formatted_thread_timestamp(html, thread);
+
 		// If this message is part of a thread, and isn't the parent
 		// message, color it differently to distinguish it from the
 		// channel messages.
 		if (g_strcmp0(ts, thread))
-			g_string_append(html, "⤷  <font color=\"#606060\">");
+			g_string_append(html, ":  <font color=\"#606060\">");
 		else
 			g_string_append(html, ":  ");
+	} else {
+		g_string_append(html, "◇ ");
+		slack_append_formatted_thread_timestamp(html, ts);
+		g_string_append(html, ":  ");
 	}
 
 	slack_message_to_html(html, sa, json_get_prop_strptr(message, "text"), flags, NULL);
@@ -524,8 +534,9 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 			const char *thread = json_get_prop_strptr(submessage, "thread_ts");
 			if (reply_count == 1 && thread) {
 				GString *msg = g_string_new(NULL);
+				g_string_append(msg, "⤷ ");
 				slack_append_formatted_thread_timestamp(msg, thread);
-				g_string_append(msg, "⤷ Thread opened on message.");
+				g_string_append(msg, "Thread opened on message.");
 				slack_write_message(sa, obj, msg->str, PURPLE_MESSAGE_RECV | PURPLE_MESSAGE_SYSTEM);
 				g_string_free(msg, TRUE);
 			}
