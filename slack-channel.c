@@ -290,7 +290,7 @@ static void send_chat_cb(SlackAccount *sa, gpointer data, json_value *json, cons
 	send->chan->object.last_sent = g_strdup(tss);
 
 	/* if we've already received this sent message, don't re-display it (#79) */
-	if (slack_ts_cmp(tss, send->chan->object.last_mesg) != 0) {
+	if (slack_ts_cmp(tss, send->chan->object.last_mesg) > 0) {
 		GString *html = g_string_new(NULL);
 		slack_json_to_html(html, sa, json, &send->flags);
 		time_t mt = slack_parse_time(ts);
