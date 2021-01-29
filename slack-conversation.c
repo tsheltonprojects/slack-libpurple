@@ -289,7 +289,7 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 				// messages.
 				continue;
 
-			if (display_threads && !h->thread_ts && thread_ts) {
+			if (display_threads && !h->thread_ts && thread_ts && !g_strcmp0(ts, thread_ts)) {
 				const char *latest_reply = json_get_prop_strptr(msg, "latest_reply");
 				if (!latest_reply || !h->since || slack_ts_cmp(latest_reply, h->since) > 0)
 					add_to_get_history_queue(sa, h->conv, h->since, SLACK_HISTORY_LIMIT_NUM, thread_ts);
