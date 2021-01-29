@@ -354,7 +354,7 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *json) {
 	slack_get_history(sa, conv,
 			json_get_prop_strptr(json, "last_read"),
-			json_get_prop_val(json, "unread_count", integer, 0));
+			SLACK_HISTORY_LIMIT_NUM);
 }
 
 static gboolean get_conversation_unread_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
