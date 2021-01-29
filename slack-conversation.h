@@ -62,6 +62,12 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *json);
 
 /**
+ * Retrieve all replies to one thread.
+ * @param thread_ts The "ts" timestamp of the parent message.
+ */
+void slack_get_thread_replies(SlackAccount *sa, SlackObject *conv, const char *thread_ts);
+
+/**
  * Retrieve and display unread history for a conversation
  */
 void slack_get_conversation_unread(SlackAccount *sa, SlackObject *conv);

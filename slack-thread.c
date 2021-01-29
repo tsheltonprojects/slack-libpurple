@@ -16,7 +16,7 @@ G_DEFINE_TYPE(SlackThread, slack_thread, SLACK_TYPE_OBJECT);
 enum ThreadOp {
 	ThreadOpSwitch,
 	ThreadOpPost,
-	ThreadOpSwitchToLatest,
+	ThreadOpGetReplies,
 };
 
 struct thread_op {
@@ -104,6 +104,14 @@ static struct thread_op *thread_op_new_post(SlackObject *conv, const char *msg) 
 	ret->conv = g_object_ref(conv);
 	ret->op = ThreadOpPost;
 	ret->msg = g_strdup(msg);
+	return ret;
+}
+
+static struct thread_op *thread_op_new_get_replies(SlackObject *conv) {
+	struct thread_op *ret = g_new(struct thread_op, 1);
+	ret->conv = g_object_ref(conv);
+	ret->op = ThreadOpGetReplies;
+	ret->msg = NULL;
 	return ret;
 }
 
@@ -224,6 +232,9 @@ static gboolean slack_thread_cb(SlackAccount *sa, gpointer data, json_value *jso
 		break;
 	case ThreadOpPost:
 		slack_thread_post(sa, conv, ts, op->msg);
+		break;
+	case ThreadOpGetReplies:
+		slack_get_thread_replies(sa, conv, ts);
 		break;
 	default:
 		break;
@@ -371,6 +382,21 @@ void slack_thread_post_to_timestamp(SlackAccount *sa, SlackObject *obj, const ch
 		}
 
 		struct thread_op *op = thread_op_new_post(obj, msg);
+		slack_thread_call_operation(sa, obj, op, ts);
+	}
+}
+
+void slack_thread_get_replies(SlackAccount *sa, SlackObject *obj, const char *timestr) {
+	if (slack_is_slack_ts(timestr))
+		slack_get_thread_replies(sa, obj, timestr);
+	else {
+		time_t ts = slack_get_ts_from_time_str(timestr);
+		if (ts == 0) {
+			slack_write_message(sa, obj, "Could not parse thread timestamp.", PURPLE_MESSAGE_SYSTEM);
+			return;
+		}
+
+		struct thread_op *op = thread_op_new_get_replies(obj);
 		slack_thread_call_operation(sa, obj, op, ts);
 	}
 }

@@ -155,6 +155,21 @@ static PurpleCmdRet cmd_thread(PurpleConversation *conv, const gchar *cmd, gchar
 	return PURPLE_CMD_RET_OK;
 }
 
+static PurpleCmdRet cmd_getthread(PurpleConversation *conv, const gchar *cmd, gchar **args, gchar **error, void *data) {
+	SlackAccount *sa = get_slack_account(conv->account);
+	if (!sa)
+		return PURPLE_CMD_RET_FAILED;
+
+	SlackObject *obj = slack_conversation_get_conversation(sa, conv);
+	if (!obj) {
+		return PURPLE_CMD_RET_FAILED;
+	}
+
+	slack_thread_get_replies(sa, obj, args ? args[0] : "");
+
+	return PURPLE_CMD_RET_OK;
+}
+
 static GSList *commands = NULL;
 
 void slack_cmd_register() {
@@ -204,6 +219,14 @@ void slack_cmd_register() {
 	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 
 	g_string_free(thread_help, TRUE);
+
+	id = purple_cmd_register("getthread", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+			SLACK_PLUGIN_ID, cmd_getthread, "getthread [thread-timestamp]: Fetch given thread", NULL);
+	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+
+	id = purple_cmd_register("gt", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+			SLACK_PLUGIN_ID, cmd_getthread, "gt [thread-timestamp]: Fetch given thread", NULL);
+	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 }
 
 void slack_cmd_unregister() {

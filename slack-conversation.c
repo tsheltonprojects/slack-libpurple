@@ -357,6 +357,11 @@ void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *j
 			SLACK_HISTORY_LIMIT_NUM);
 }
 
+void slack_get_thread_replies(SlackAccount *sa, SlackObject *conv, const char *thread_ts) {
+	if (add_to_get_history_queue(sa, conv, NULL, SLACK_HISTORY_LIMIT_NUM, thread_ts))
+		slack_get_history_next(sa);
+}
+
 static gboolean get_conversation_unread_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	SlackObject *conv = data;
 	json = json_get_prop_type(json, "channel", object);
