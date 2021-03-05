@@ -20,8 +20,9 @@ void slack_write_message(SlackAccount *sa, SlackObject *obj, const char *html, P
  *
  * @param json the json message object (should contain "subtype" field)
  * @param flags additional flags for message
+ * @param force_threads Whether threads should be displayed despite "display_threads" setting.
  */
-void slack_handle_message(SlackAccount *sa, SlackObject *conv, json_value *json, PurpleMessageFlags flags);
+void slack_handle_message(SlackAccount *sa, SlackObject *conv, json_value *json, PurpleMessageFlags flags, gboolean force_threads);
 
 /**
  * Returns a deterministic color for a thread.

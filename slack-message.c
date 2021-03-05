@@ -478,7 +478,7 @@ void slack_write_message(SlackAccount *sa, SlackObject *obj, const char *html, P
 	}
 }
 
-void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, PurpleMessageFlags flags) {
+void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, PurpleMessageFlags flags, gboolean force_threads) {
 	if (!obj) {
 		purple_debug_warning("slack", "Message to unknown channel %s\n", json_get_prop_strptr(json, "channel"));
 		return;
@@ -490,7 +490,7 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 	const char *tss = json_get_strptr(ts);
 	const char *subtype = json_get_prop_strptr(json, "subtype");
 
-	if (thread && g_strcmp0(tss, thread) && g_strcmp0(subtype, "thread_broadcast") && !display_threads) {
+	if (thread && g_strcmp0(tss, thread) && g_strcmp0(subtype, "thread_broadcast") && !display_threads && !force_threads) {
 		purple_debug_misc("slack", "Thread replies are turned off, ignoring message.\n");
 		return;
 	}
@@ -528,7 +528,7 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 			int reply_count = json_get_prop_val(submessage, "reply_count", integer, 0);
 			const char *thread = json_get_prop_strptr(submessage, "thread_ts");
 			if (reply_count == 1 && thread)
-				slack_handle_message(sa, obj, submessage, flags);
+				slack_handle_message(sa, obj, submessage, flags, FALSE);
 		}
 
 		g_string_free(html, TRUE);
@@ -613,7 +613,7 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 
 static void handle_message(SlackAccount *sa, gpointer data, SlackObject *obj) {
 	json_value *json = data;
-	slack_handle_message(sa, obj, json, PURPLE_MESSAGE_RECV);
+	slack_handle_message(sa, obj, json, PURPLE_MESSAGE_RECV, FALSE);
 	json_value_free(json);
 }
 

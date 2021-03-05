@@ -55,7 +55,7 @@ static inline void conversation_counts_check_unread(SlackAccount *sa, SlackObjec
 	const char *since = json_get_prop_strptr(json, "last_read");
 	if (!since)
 		return;
-	slack_get_history(sa, conv, since, /* TODO pagination */ SLACK_HISTORY_LIMIT_NUM, NULL);
+	slack_get_history(sa, conv, since, /* TODO pagination */ SLACK_HISTORY_LIMIT_NUM, NULL, FALSE);
 }
 
 static inline void conversation_counts_channels(SlackAccount *sa, json_value *json, const char *prop, SlackChannelType type, gboolean load_history) {
@@ -213,6 +213,7 @@ struct get_history {
 	SlackObject *conv;
 	char *since;
 	gboolean thread;
+	gboolean force_threads;
 };
 
 void slack_get_history_free(struct get_history *h) {
@@ -253,11 +254,11 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 			if (display_threads && !h->thread && thread_ts && !g_strcmp0(ts, thread_ts)) {
 				const char *latest_reply = json_get_prop_strptr(msg, "latest_reply");
 				if (!latest_reply || !h->since || slack_ts_cmp(latest_reply, h->since) > 0)
-					slack_get_history(sa, h->conv, h->since, SLACK_HISTORY_LIMIT_NUM, thread_ts);
+					slack_get_history(sa, h->conv, h->since, SLACK_HISTORY_LIMIT_NUM, thread_ts, FALSE);
 			}
 
 			if (!ts || !h->since || slack_ts_cmp(ts, h->since) > 0)
-				slack_handle_message(sa, h->conv, msg, PURPLE_MESSAGE_RECV | PURPLE_MESSAGE_DELAYED);
+				slack_handle_message(sa, h->conv, msg, PURPLE_MESSAGE_RECV | PURPLE_MESSAGE_DELAYED, h->force_threads);
 		}
 		/* TODO: pagination has_more? */
 	}
@@ -265,7 +266,7 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 	return FALSE;
 }
 
-void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count, const char *thread_ts) {
+void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count, const char *thread_ts, gboolean force_threads) {
 	purple_debug_misc("slack", "get_history %s %u\n", since, count);
 
 	if (count == 0)
@@ -294,6 +295,7 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 	h->conv = g_object_ref(conv);
 	h->since = g_strdup(since);
 	h->thread = (thread_ts != NULL);
+	h->force_threads = force_threads;
 
 	char count_buf[6] = "";
 	snprintf(count_buf, 5, "%u", MIN(count, SLACK_HISTORY_LIMIT_NUM));
@@ -307,11 +309,12 @@ void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *j
 	slack_get_history(sa, conv,
 			json_get_prop_strptr(json, "last_read"),
 			SLACK_HISTORY_LIMIT_NUM,
-			NULL);
+			NULL,
+			FALSE);
 }
 
 void slack_get_thread_replies(SlackAccount *sa, SlackObject *conv, const char *thread_ts) {
-	slack_get_history(sa, conv, NULL, SLACK_HISTORY_LIMIT_NUM, thread_ts);
+	slack_get_history(sa, conv, NULL, SLACK_HISTORY_LIMIT_NUM, thread_ts, TRUE);
 }
 
 static gboolean get_conversation_unread_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {

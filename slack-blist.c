@@ -101,7 +101,7 @@ static void get_history_cb(PurpleBlistNode *buddy, PurpleRequestFields *fields) 
 
 	int count = purple_request_fields_get_integer(fields, "count");
 	if (count > 0)
-		slack_get_history(sa, obj, NULL, count, NULL);
+		slack_get_history(sa, obj, NULL, count, NULL, FALSE);
 	else
 		slack_get_conversation_unread(sa, obj);
 }

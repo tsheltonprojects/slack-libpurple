@@ -52,8 +52,9 @@ void slack_mark_conversation(SlackAccount *sa, PurpleConversation *conv);
  * @param since oldest message to display (NULL for beginning of time)
  * @param count maximum number of messages to display
  * @param thread_ts thread to fetch, or NULL for channel messages
+ * @param force_threads Whether threads should be displayed despite "display_threads" setting.
  */
-void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count, const char *thread_ts);
+void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count, const char *thread_ts, gboolean force_threads);
 
 /**
  * Retrieve and display unread history for a conversation
