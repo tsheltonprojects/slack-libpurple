@@ -207,6 +207,10 @@ static void link_html(GString *html, char *url, char *text) {
  * documented at https://api.slack.com/docs/message-attachments
  */
 static void slack_attachment_to_html(GString *html, SlackAccount *sa, json_value *attachment) {
+	char *from_url = json_get_prop_strptr(attachment, "from_url");
+	if (from_url && !purple_account_get_bool(sa->account, "expand_urls", TRUE))
+		return;
+
 	char *service_name = json_get_prop_strptr(attachment, "service_name");
 	char *service_link = json_get_prop_strptr(attachment, "service_link");
 	char *author_name = json_get_prop_strptr(attachment, "author_name");
