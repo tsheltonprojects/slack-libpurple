@@ -56,7 +56,7 @@ SlackUser *slack_im_set(SlackAccount *sa, json_value *json, SlackUser *user, gbo
 	if (!user) {
 		user = (SlackUser *)slack_object_hash_table_lookup(sa->users, user_id);
 		if (!user) {
-			purple_debug_warning("IM %s for unknown user: %s\n", sid, user_id);
+			purple_debug_warning("slack", "IM %s for unknown user: %s\n", sid, user_id);
 			return user;
 		}
 	} else
