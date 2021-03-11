@@ -354,7 +354,6 @@ void slack_login_step(SlackAccount *sa) {
 			slack_conversation_counts(sa);
 			break;
 		case 9:
-			MSG("Connected");
 			slack_presence_sub(sa);
 			purple_connection_set_state(sa->gc, PURPLE_CONNECTED);
 	}
