@@ -386,7 +386,11 @@ static void slack_close(PurpleConnection *gc) {
 	g_hash_table_destroy(sa->user_names);
 	g_hash_table_destroy(sa->users);
 
+#if GLIB_CHECK_VERSION(2,60,0)
 	g_queue_clear_full(&sa->avatar_queue, g_object_unref);
+#else
+	g_queue_foreach(&sa->avatar_queue, (GFunc)g_object_unref, NULL);
+#endif
 
 	g_free(sa->team.id);
 	g_free(sa->team.name);
