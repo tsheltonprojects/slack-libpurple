@@ -52,7 +52,6 @@ typedef struct _SlackAccount {
 	SlackObject *mark_list;
 
 	GQueue avatar_queue; /* SlackUser * queue for avatar downloads */
-	GQueue *get_history_queue; /* struct get_history * queue for unread messages we need to fetch. */
 
 	gboolean away;
 } SlackAccount;

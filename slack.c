@@ -270,7 +270,6 @@ static void slack_login(PurpleAccount *account) {
 	sa->channel_cids = g_hash_table_new_full(g_direct_hash,    g_direct_equal,        NULL, NULL);
 
 	g_queue_init(&sa->avatar_queue);
-	sa->get_history_queue = g_queue_new();
 
 	sa->buddies = g_hash_table_new_full(/* slack_object_id_hash, slack_object_id_equal, */ g_str_hash, g_str_equal, NULL, NULL);
 
@@ -386,10 +385,6 @@ static void slack_close(PurpleConnection *gc) {
 	g_hash_table_destroy(sa->rtm_call);
 
 	slack_api_disconnect(sa);
-
-	/* #52: don't use g_queue_free_full for backwards compatibility */
-	g_queue_foreach(sa->get_history_queue, (GFunc)slack_get_history_free, NULL);
-	g_queue_free(sa->get_history_queue);
 
 	g_hash_table_destroy(sa->buddies);
 

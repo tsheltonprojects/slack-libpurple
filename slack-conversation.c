@@ -209,23 +209,8 @@ void slack_mark_conversation(SlackAccount *sa, PurpleConversation *conv) {
 	sa->mark_timer = purple_timeout_add_seconds(5, mark_conversation_timer, sa);
 }
 
-struct get_history {
-	SlackObject *conv;
-	char *since;
-	unsigned count;
-	gboolean opening;
-};
-
-void slack_get_history_free(struct get_history *h) {
-	g_object_unref(h->conv);
-	g_free(h->since);
-	g_free(h);
-}
-
-static void slack_get_history_next(SlackAccount *sa);
-
 static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
-	struct get_history *h = g_queue_pop_head(sa->get_history_queue);
+	SlackObject *conv = data;
 	json_value *list = json_get_prop_type(json, "messages", array);
 
 	if (!list || error) {
@@ -237,50 +222,12 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 			if (g_strcmp0(json_get_prop_strptr(msg, "type"), "message"))
 				continue;
 
-			slack_handle_message(sa, h->conv, msg, PURPLE_MESSAGE_RECV | PURPLE_MESSAGE_DELAYED);
+			slack_handle_message(sa, conv, msg, PURPLE_MESSAGE_RECV | PURPLE_MESSAGE_DELAYED);
 		}
 		/* TODO: pagination has_more? */
 	}
 
-	slack_get_history_free(h);
-	slack_get_history_next(sa);
 	return FALSE;
-}
-
-static void slack_get_history_next(SlackAccount *sa) {
-	struct get_history *h = g_queue_peek_head(sa->get_history_queue);
-	if (!h)
-		return;
-
-	if (SLACK_IS_CHANNEL(h->conv)) {
-		SlackChannel *chan = (SlackChannel*)h->conv;
-		if (!chan->cid) {
-			if (purple_account_get_bool(sa->account, "get_history", FALSE)) {
-				/* this will call back into get_history */
-				h->opening = TRUE;
-				slack_chat_open(sa, chan);
-				/* FIXME if channels_info returns error, we'll stall */
-			} else {
-				/* don't load history */
-				slack_get_history_free(h);
-				slack_get_history_next(sa);
-			}
-			return;
-		}
-	}
-	const char *id = slack_conversation_id(h->conv);
-	if (id == NULL) {
-		get_history_cb(sa, NULL, NULL, "no conversation ID");
-		return;
-	}
-
-	char count_buf[6] = "";
-	snprintf(count_buf, 5, "%u", h->count);
-	slack_api_get(sa, get_history_cb, NULL, "conversations.history", "channel", id, "oldest", h->since ?: "0", "limit", count_buf, NULL);
-}
-
-static gint get_history_compare(struct get_history *a, struct get_history *b) {
-	return a->conv == b->conv ? 0 : a->conv > b->conv ? 1 : -1;
 }
 
 void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count) {
@@ -292,30 +239,29 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 		/* even though it gives this as a last_read, it doesn't like it in since */
 		since = NULL;
 
-	gboolean empty = g_queue_is_empty(sa->get_history_queue);
+	if (SLACK_IS_CHANNEL(conv)) {
+		SlackChannel *chan = (SlackChannel*)conv;
+		if (!chan->cid) {
+			if (purple_account_get_bool(sa->account, "get_history", FALSE)) {
+				/* this will call back into get_history */
+				slack_chat_open(sa, chan);
+			}
+			return;
+		}
+	}
+	const char *id = slack_conversation_id(conv);
+	if (id == NULL) {
+		get_history_cb(sa, conv, NULL, "no conversation ID");
+		return;
+	}
 
-	struct get_history *h = g_new(struct get_history, 1);
-	h->conv = g_object_ref(conv);
-	h->since = g_strdup(since);
-	h->count = count;
-	h->opening = FALSE;
-
-	GList *exist = g_queue_find_custom(sa->get_history_queue, h, (GCompareFunc)get_history_compare);
-	if (exist) {
-		if (((struct get_history *)exist->data)->opening)
-			/* callback from chat_open -- continue */
-			empty = TRUE;
-		/* replace existing */
-		slack_get_history_free(exist->data);
-		exist->data = h;
-	} else
-		g_queue_push_tail(sa->get_history_queue, h);
-
-	if (empty)
-		slack_get_history_next(sa);
+	char count_buf[6] = "";
+	snprintf(count_buf, 5, "%u", count);
+	slack_api_get(sa, get_history_cb, conv, "conversations.history", "channel", id, "oldest", since ?: "0", "limit", count_buf, NULL);
 }
 
 void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *json) {
+	/* XXX broken: unread count is missing! */
 	slack_get_history(sa, conv,
 			json_get_prop_strptr(json, "last_read"),
 			json_get_prop_val(json, "unread_count", integer, 0));
