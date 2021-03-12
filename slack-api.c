@@ -19,36 +19,47 @@ struct _SlackAPICall {
 	char *url;
 	char *request;
 	PurpleUtilFetchUrlData *fetch;
+	guint timeout;
 	SlackAPICallback *callback;
 	gpointer data;
-
-	SlackAPICall **prev, *next;
 };
 
-static void api_error(SlackAPICall *call, const char *error) {
-	if ((*call->prev = call->next))
-		call->next->prev = call->prev;
-	if (call->callback)
-		call->callback(call->sa, call->data, NULL, error);
+static void api_free(SlackAPICall *call) {
 	g_free(call->request);
 	g_free(call->url);
 	g_free(call);
+}
+
+static void api_error(SlackAPICall *call, const char *error) {
+	if (call->fetch)
+		purple_util_fetch_url_cancel(call->fetch);
+	if (call->timeout)
+		purple_timeout_remove(call->timeout);
+	if (call->callback)
+		call->callback(call->sa, call->data, NULL, error);
+	api_free(call);
 };
 
-static gboolean api_retry(gpointer data);
+static gboolean api_retry(SlackAPICall *call);
+static void api_run(SlackAccount *sa);
 
-static void api_cb(G_GNUC_UNUSED PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *buf, gsize len, const gchar *error) {
-	SlackAPICall *call = data;
+static void api_cb(PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *buf, gsize len, const gchar *error) {
+	SlackAccount *sa = data;
+	SlackAPICall *call = g_queue_pop_head(&sa->api_calls);
+	g_return_if_fail(call->fetch == fetch);
+	call->fetch = NULL;
 
 	purple_debug_misc("slack", "api response: %s\n", error ?: buf);
 	if (error) {
 		api_error(call, error);
+		api_run(sa);
 		return;
 	}
 
 	json_value *json = json_parse(buf, len);
 	if (!json) {
 		api_error(call, "Invalid JSON response");
+		api_run(sa);
 		return;
 	}
 
@@ -57,34 +68,39 @@ static void api_cb(G_GNUC_UNUSED PurpleUtilFetchUrlData *fetch, gpointer data, c
 		if (!g_strcmp0(err, "ratelimited")) {
 			/* #27: correct thing to do on 429 status is parse the "Retry-After" header and wait that many seconds,
 			 * but getting access to the headers here requires more work, so we just heuristically make up a number... */
-			purple_timeout_add_seconds(purple_account_get_int(call->sa->account, "ratelimit_delay", 15), api_retry, call);
+			call->timeout = purple_timeout_add_seconds(purple_account_get_int(sa->account, "ratelimit_delay", 15), (GSourceFunc)api_retry, call);
 			json_value_free(json);
 			return;
 		}
 		api_error(call, err ?: "Unknown error");
 		json_value_free(json);
+		api_run(sa);
 		return;
 	}
 
-	if ((*call->prev = call->next))
-		call->next->prev = call->prev;
 	if (call->callback)
 		if (call->callback(call->sa, call->data, json, NULL))
 			json = NULL;
-
 	if (json)
 		json_value_free(json);
-	g_free(call->request);
-	g_free(call->url);
-	g_free(call);
+	api_free(call);
+	api_run(sa);
 }
 
-static gboolean api_retry(gpointer data) {
-	SlackAPICall *call = data;
+static gboolean api_retry(SlackAPICall *call) {
+	call->timeout = 0;
+	purple_debug_misc("slack", "api call: %s\n%s\n", call->url, call->request ?: "");
 	call->fetch = purple_util_fetch_url_request_len_with_account(call->sa->account,
 			call->url, FALSE, NULL, TRUE, call->request, FALSE, 4096*1024,
-			api_cb, call);
+			api_cb, call->sa);
 	return FALSE;
+}
+
+static void api_run(SlackAccount *sa) {
+	SlackAPICall *call = g_queue_peek_head(&sa->api_calls);
+	if (!call || call->fetch || call->timeout)
+		return;
+	api_retry(call);
 }
 
 static GString *slack_api_encode_url(SlackAccount *sa, const char *pfx, const char *endpoint, va_list qargs) {
@@ -146,13 +162,11 @@ static void slack_api_call_url(SlackAccount *sa, SlackAPICallback callback, gpoi
 	call->url = g_strdup(url);
 	call->request = g_strdup(request);
 	call->data = user_data;
-	if ((call->next = sa->api_calls))
-		call->next->prev = &call->next;
-	call->prev = &sa->api_calls;
-	sa->api_calls = call;
 
-	purple_debug_misc("slack", "api call: %s\n%s\n", url, request ?: "");
-	api_retry(call);
+	gboolean empty = g_queue_is_empty(&sa->api_calls);
+	g_queue_push_tail(&sa->api_calls, call);
+	if (empty)
+		api_retry(call);
 }
 
 void slack_api_get(SlackAccount *sa, SlackAPICallback callback, gpointer user_data, const char *endpoint, ...)
@@ -184,8 +198,7 @@ void slack_api_post(SlackAccount *sa, SlackAPICallback callback, gpointer user_d
 }
 
 void slack_api_disconnect(SlackAccount *sa) {
-	while (sa->api_calls) {
-		purple_util_fetch_url_cancel(sa->api_calls->fetch);
-		api_error(sa->api_calls, "disconnected");
-	}
+	SlackAPICall *call;
+	while ((call = g_queue_pop_head(&sa->api_calls)))
+		api_error(call, "disconnected");
 }
