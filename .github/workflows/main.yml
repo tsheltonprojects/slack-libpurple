@@ -1,0 +1,19 @@
+name: CI
+on:
+  - push
+  - pull_request
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: sudo apt-get install libpurple-dev
+      - name: make
+        env:
+          LOCAL_CFLAGS: -Werror
+        run: make
+      - name: install-user
+        run: make install-user
+      - name: install
+        run: sudo make install

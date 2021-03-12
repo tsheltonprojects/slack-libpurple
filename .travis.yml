@@ -1,6 +1,0 @@
-language: c
-addons:
-  apt:
-    packages:
-      - libpurple-dev
-script: make LOCAL_CFLAGS="-Werror" && sudo make install
