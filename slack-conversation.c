@@ -256,15 +256,14 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 	}
 
 	char count_buf[6] = "";
-	snprintf(count_buf, 5, "%u", count);
+	snprintf(count_buf, 5, "%u", MIN(count,500));
 	slack_api_get(sa, get_history_cb, conv, "conversations.history", "channel", id, "oldest", since ?: "0", "limit", count_buf, NULL);
 }
 
 void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *json) {
-	/* XXX broken: unread count is missing! */
 	slack_get_history(sa, conv,
 			json_get_prop_strptr(json, "last_read"),
-			json_get_prop_val(json, "unread_count", integer, 0));
+			json_get_prop_val(json, "unread_count", integer, -1));
 }
 
 static gboolean get_conversation_unread_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
