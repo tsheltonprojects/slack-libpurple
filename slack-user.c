@@ -281,7 +281,7 @@ static void avatar_load_next(SlackAccount *sa);
 
 static void avatar_cb(G_GNUC_UNUSED PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *buf, gsize len, const gchar *error) {
 	SlackAccount *sa = data;
-	SlackUser *user = g_queue_pop_head(sa->avatar_queue);
+	SlackUser *user = g_queue_pop_head(&sa->avatar_queue);
 	g_return_if_fail(user);
 	if (error) {
 		purple_debug_warning("slack", "avatar download failed: %s\n", error);
@@ -295,7 +295,7 @@ static void avatar_cb(G_GNUC_UNUSED PurpleUtilFetchUrlData *fetch, gpointer data
 }
 
 static void avatar_load_next(SlackAccount *sa) {
-	SlackUser *user = g_queue_peek_head(sa->avatar_queue);
+	SlackUser *user = g_queue_peek_head(&sa->avatar_queue);
 	if (!user)
 		return;
 	purple_debug_misc("slack", "downloading avatar for %s\n", user->object.name);
@@ -311,11 +311,11 @@ void slack_update_avatar(SlackAccount *sa, SlackUser *user) {
 		return;
 
 	/* if nothing was on the queue being loaded, we will start a new load */
-	gboolean empty = g_queue_is_empty(sa->avatar_queue);
+	gboolean empty = g_queue_is_empty(&sa->avatar_queue);
 
 	/* increase user ref-count to be decreased in avatar_cb */
 	g_object_ref(user);
-	g_queue_push_tail(sa->avatar_queue, user);
+	g_queue_push_tail(&sa->avatar_queue, user);
 	purple_debug_misc("slack", "new avatar for %s, queueing for download.\n", user->object.name);
 	if (empty)
 		avatar_load_next(sa);

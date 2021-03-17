@@ -22,7 +22,7 @@ typedef struct _SlackAccount {
 	char *token; /* url encoded */
 
 	short login_step;
-	struct _SlackAPICall *api_calls; /* linked list */
+	GQueue api_calls; /* SlackAPICall */
 	PurpleWebsocket *rtm;
 	guint rtm_id;
 	GHashTable *rtm_call; /* unsigned rtm_id -> SlackRTMCall */
@@ -51,8 +51,7 @@ typedef struct _SlackAccount {
 	guint mark_timer;
 	SlackObject *mark_list;
 
-	GQueue *avatar_queue; /* SlackUser * queue for avatar downloads */
-	GQueue *get_history_queue; /* struct get_history * queue for unread messages we need to fetch. */
+	GQueue avatar_queue; /* SlackUser * queue for avatar downloads */
 
 	gboolean away;
 } SlackAccount;

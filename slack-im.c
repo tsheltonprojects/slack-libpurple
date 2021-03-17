@@ -56,7 +56,7 @@ SlackUser *slack_im_set(SlackAccount *sa, json_value *json, SlackUser *user, gbo
 	if (!user) {
 		user = (SlackUser *)slack_object_hash_table_lookup(sa->users, user_id);
 		if (!user) {
-			purple_debug_warning("IM %s for unknown user: %s\n", sid, user_id);
+			purple_debug_warning("slack", "IM %s for unknown user: %s\n", sid, user_id);
 			return user;
 		}
 	} else
@@ -187,7 +187,7 @@ int slack_send_im(PurpleConnection *gc, const char *who, const char *msg, Purple
 	send->flags = flags;
 
 	if (!*user->im)
-		slack_api_post(sa, send_im_open_cb, send, "im.open", "user", user->object.id, "return_im", "true", NULL);
+		slack_api_post(sa, send_im_open_cb, send, "converstations.open", "user", user->object.id, "return_im", "true", NULL);
 	else
 		send_im_open_cb(sa, send, NULL, NULL);
 

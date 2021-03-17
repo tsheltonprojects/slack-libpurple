@@ -51,8 +51,9 @@ void slack_mark_conversation(SlackAccount *sa, PurpleConversation *conv);
  *
  * @param since oldest message to display (NULL for beginning of time)
  * @param count maximum number of messages to display
+ * @param thread_ts thread to fetch, or NULL for channel messages
  */
-void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count);
+void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, unsigned count, const char *thread_ts);
 
 /**
  * Retrieve and display unread history for a conversation

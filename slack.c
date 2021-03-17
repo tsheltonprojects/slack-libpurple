@@ -268,6 +268,8 @@ static void slack_login(PurpleAccount *account) {
 		}
 	}
 
+	g_queue_init(&sa->api_calls);
+
 	sa->rtm_call = g_hash_table_new_full(g_direct_hash,        g_direct_equal,        NULL, (GDestroyNotify)slack_rtm_cancel);
 
 	sa->users    = g_hash_table_new_full(slack_object_id_hash, slack_object_id_equal, NULL, g_object_unref);
@@ -278,8 +280,7 @@ static void slack_login(PurpleAccount *account) {
 	sa->channel_names = g_hash_table_new_full(g_str_hash,      g_str_equal,           NULL, NULL);
 	sa->channel_cids = g_hash_table_new_full(g_direct_hash,    g_direct_equal,        NULL, NULL);
 
-	sa->avatar_queue = g_queue_new();
-	sa->get_history_queue = g_queue_new();
+	g_queue_init(&sa->avatar_queue);
 
 	sa->buddies = g_hash_table_new_full(/* slack_object_id_hash, slack_object_id_equal, */ g_str_hash, g_str_equal, NULL, NULL);
 
@@ -365,7 +366,6 @@ void slack_login_step(SlackAccount *sa) {
 			slack_conversation_counts(sa);
 			break;
 		case 9:
-			MSG("Connected");
 			slack_presence_sub(sa);
 			purple_connection_set_state(sa->gc, PURPLE_CONNECTED);
 	}
@@ -397,10 +397,6 @@ static void slack_close(PurpleConnection *gc) {
 
 	slack_api_disconnect(sa);
 
-	/* #52: don't use g_queue_free_full for backwards compatibility */
-	g_queue_foreach(sa->get_history_queue, (GFunc)slack_get_history_free, NULL);
-	g_queue_free(sa->get_history_queue);
-
 	g_hash_table_destroy(sa->buddies);
 
 	g_hash_table_destroy(sa->channel_cids);
@@ -411,8 +407,11 @@ static void slack_close(PurpleConnection *gc) {
 	g_hash_table_destroy(sa->user_names);
 	g_hash_table_destroy(sa->users);
 
-	g_queue_foreach(sa->avatar_queue, (GFunc)g_object_unref, NULL);
-	g_queue_free(sa->avatar_queue);
+#if GLIB_CHECK_VERSION(2,60,0)
+	g_queue_clear_full(&sa->avatar_queue, g_object_unref);
+#else
+	g_queue_foreach(&sa->avatar_queue, (GFunc)g_object_unref, NULL);
+#endif
 
 	g_free(sa->team.id);
 	g_free(sa->team.name);
