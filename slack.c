@@ -242,8 +242,7 @@ static void slack_login(PurpleAccount *account) {
 
 	/* check if we have a token and set it as the password if we do */
 	if (token && *token) {
-		sa->token = g_strdup(token);
-		purple_account_set_password(sa->account, sa->token);
+		purple_account_set_password(sa->account, token);
 	}
 
 	if(!legacy_token) {
