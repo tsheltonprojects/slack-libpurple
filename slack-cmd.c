@@ -123,27 +123,17 @@ static PurpleCmdRet cmd_thread(PurpleConversation *conv, const gchar *cmd, gchar
 	}
 
 	if (!args || !args[0]) {
-		slack_thread_switch_to_latest(sa, obj);
+		slack_write_message(sa, obj, "Please supply a timestamp and a message.", PURPLE_MESSAGE_SYSTEM);
 		return PURPLE_CMD_RET_OK;
 	}
 
 	gchar *line = g_strdup(args[0]);
 	gchar **split = g_strsplit(line, " ", 2);
 	if (split[0] == NULL)
-		slack_thread_switch_to_latest(sa, obj);
-	else if (split[0][0] == '/') {
-		if (split[0][1] != '\0')
-			slack_write_message(sa, obj, "thread: First argument must be '/' or a valid timestamp", PURPLE_MESSAGE_SYSTEM);
-		else {
-			if (split[1] == NULL) {
-				slack_thread_switch_to_channel(sa, obj);
-			} else {
-				slack_thread_post_to_channel(sa, obj, split[1]);
-			}
-		}
-	} else {
+		slack_write_message(sa, obj, "Please supply a timestamp and a message.", PURPLE_MESSAGE_SYSTEM);
+	else {
 		if (split[1] == NULL) {
-			slack_thread_switch_to_timestamp(sa, obj, split[0]);
+			slack_write_message(sa, obj, "Please supply a message.", PURPLE_MESSAGE_SYSTEM);
 		} else {
 			slack_thread_post_to_timestamp(sa, obj, split[0], split[1]);
 		}
@@ -198,22 +188,15 @@ void slack_cmd_register() {
 	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 
 	// Make sure the number of %s matches the printfs further down.
-	const char *thread_fmt = "%s [thread-timestamp [message]]:  Post messages in threads.\n"
-			"This command can be used in several ways. One can either switch focus to a thread, causing all messages to be "
-			"posted to that thread, or post single messages to a thread. See these usage examples:\n"
-			"- /%s thread-timestamp:  Switch to thread with given timestamp.\n"
-			"- /%s /:  Switch back to channel.\n"
-			"- /%s:  Switch to the thread of the latest message. Switches to main channel if the latest reply was not threaded.\n"
-			"- /%s thread-timestamp message:  Post single message to the thread with the given timestamp.\n"
-			"- /%s / message:  Post single message to main channel.";
+	const char *thread_fmt = "%s thread-timestamp message:  Post messages in threads.";
 	GString *thread_help = g_string_new(NULL);
 
-	g_string_printf(thread_help, thread_fmt, "th", "th", "th", "th", "th", "th", "th");
+	g_string_printf(thread_help, thread_fmt, "th");
 	id = purple_cmd_register("th", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY |
 			PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS, SLACK_PLUGIN_ID, cmd_thread, thread_help->str, NULL);
 	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 
-	g_string_printf(thread_help, thread_fmt, "thread", "thread", "thread", "thread", "thread", "thread", "thread");
+	g_string_printf(thread_help, thread_fmt, "thread");
 	id = purple_cmd_register("thread", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY |
 			PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS, SLACK_PLUGIN_ID, cmd_thread, thread_help->str, NULL);
 	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
