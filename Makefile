@@ -95,7 +95,8 @@ install: $(LIBNAME)
 	done
 
 install-user: $(LIBNAME)
-	install -D $(LIBNAME) $(HOME)/.purple/plugins/$(LIBNAME)
+	install -d $(HOME)/.purple/plugins/$(LIBNAME)
+	install $(LIBNAME) $(HOME)/.purple/plugins/$(LIBNAME)
 
 .PHONY: uninstall
 uninstall: $(LIBNAME)
