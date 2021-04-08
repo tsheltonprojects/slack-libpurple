@@ -26,24 +26,18 @@ GString *slack_get_thread_color(const char *ts) {
 	// This gives quite a random color, but often with a dominant RGB
 	// component, never white, and deterministic from ts.
 
-	unsigned int seed = slack_parse_time_str(ts);
-	char *dot = strchr(ts, '.');
-	if (dot)
-		seed ^= atol(dot + 1);
-
-	GString *tmp = g_string_sized_new(7);
-
-	unsigned int r = rand_r(&seed);
+	guint r = g_str_hash(ts);
 
 	// Pick random RGB color.
-	unsigned int color = r & 0x7f7f7f;
+	guint color = r & 0x7f7f7f;
 
 	// Pick random RGB high bit by shifting 0x800000 down by 0 (B), 8 (G),
 	// 16 (R), or 24 (0). 0x3000000 are the first bits of 'r' we didn't use
 	// yet.
-	unsigned int pref_color = (0x800000 >> ((r & 0x3000000) >> 21));
+	guint pref_color = (0x800000 >> ((r & 0x3000000) >> 21));
 	color |= pref_color;
 
+	GString *tmp = g_string_sized_new(7);
 	g_string_printf(tmp, "%06x", color);
 
 	return tmp;
