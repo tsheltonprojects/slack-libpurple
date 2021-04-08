@@ -263,6 +263,7 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 		/* TODO: pagination has_more? */
 	}
 
+	slack_get_history_free(h);
 	return FALSE;
 }
 
