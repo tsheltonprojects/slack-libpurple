@@ -306,9 +306,37 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 }
 
 void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *json) {
+	/*
+	  To get thread replies we have to get around some serious deficiences
+	  in the public API: There no way to query replies by date. And we have
+	  to do that in order to get automatic history when you log in. The only
+	  way I have found is to query as many channel messages as possible,
+	  check what their "latest_reply" field is, and use those to decide what
+	  threads to query. Checking all messages this way is completely
+	  unrealistic, but fortunately, threads tend to be short-lived, so we
+	  can use one single API call to get the last 1000 messages (maximum
+	  that Slack allows), and check that without much risk of being rate
+	  limited. This means the mechanics for querying by time is (mostly)
+	  moved to the client side, and when limiting by time, we still fetch
+	  all the last 1000 messages, but we only display those that match the
+	  time range.
+
+	  Yes, this is horrible, and it will not work for any thread older than
+	  1000 main-channel messages ago. If anyone knows how to query threads
+	  in a more efficient way, I'm very interested in hearing it.
+	*/
+
+	int limit;
+	if (purple_account_get_bool(sa->account, "display_threads", TRUE))
+		limit = SLACK_HISTORY_LIMIT_NUM;
+	else
+		// Optimize when we're not fetching thread replies. See above
+		// comment.
+		limit = json_get_prop_val(json, "unread_count", integer, -1);
+
 	slack_get_history(sa, conv,
 			json_get_prop_strptr(json, "last_read"),
-			SLACK_HISTORY_LIMIT_NUM,
+			limit,
 			NULL,
 			FALSE);
 }
