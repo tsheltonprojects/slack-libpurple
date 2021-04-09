@@ -411,9 +411,9 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 	const char *thread = json_get_prop_strptr(message, "thread_ts");
 	if (thread && (display_parent_indicator || g_strcmp0(ts, thread))) {
 		if (g_strcmp0(ts, thread))
-			g_string_append(html, "⤷ ");
+			g_string_append(html, purple_account_get_string(sa->account, "thread_indicator", "⤷ "));
 		else
-			g_string_append(html, "◈ ");
+			g_string_append(html, purple_account_get_string(sa->account, "parent_indicator", "◈ "));
 
 		slack_append_formatted_thread_timestamp(html, thread);
 
