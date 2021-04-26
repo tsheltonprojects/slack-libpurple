@@ -59,6 +59,7 @@ CFLAGS = \
     -O2 \
     -Wall \
     -Wno-error=strict-aliasing \
+    -Wno-error=deprecated-declarations \
     -fPIC \
     -D_DEFAULT_SOURCE=1 \
     -std=c99 \
