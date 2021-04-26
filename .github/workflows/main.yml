@@ -10,8 +10,8 @@ jobs:
       - uses: actions/checkout@v2
       - run: sudo apt-get install libpurple-dev
       - name: make
-        env:
-          LOCAL_CFLAGS: -Werror
+        #env:
+        #  LOCAL_CFLAGS: -Werror
         run: make
       - name: install-user
         run: make install-user
