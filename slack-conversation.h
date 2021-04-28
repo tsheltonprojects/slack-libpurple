@@ -5,7 +5,7 @@
 #include "slack.h"
 #include "slack-object.h"
 #include "slack-channel.h"
-#include "slack-user.h"
+#include "slack-im.h"
 
 static inline const char *slack_conversation_id(SlackObject *chan) {
 	g_return_val_if_fail(chan, NULL);
@@ -82,5 +82,17 @@ struct get_history;
  * Free an element of get_history_queue
  */
 void slack_get_history_free(struct get_history *h);
+
+/**
+ * Generic send a message to a conversation from the user.
+ */
+static inline int slack_conversation_send(SlackAccount *sa, SlackObject *conv, const char *msg, PurpleMessageFlags flags, const char *thread) {
+	if (SLACK_IS_CHANNEL(conv))
+		return slack_channel_send(sa, (SlackChannel *)conv, msg, flags, thread);
+	else if (SLACK_IS_USER(conv))
+		return slack_im_send(sa, (SlackUser *)conv, msg, flags, thread);
+	else
+		return -EINVAL;
+}
 
 #endif // _PURPLE_SLACK_CONVERSATION_H

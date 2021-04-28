@@ -1,11 +1,9 @@
 #include "slack-api.h"
 #include "slack-channel.h"
 #include "slack-conversation.h"
-#include "slack-im.h"
 #include "slack-json.h"
 #include "slack-message.h"
 #include "slack-thread.h"
-#include "slack-user.h"
 
 #include <debug.h>
 
@@ -51,37 +49,6 @@ static time_t slack_get_ts_from_time_str(const char *time_str) {
 		return mktime(&tm);
 
 	return 0;
-}
-
-static int slack_thread_send_message(SlackAccount *sa, SlackObject *conv, const char *msg, PurpleMessageFlags flags) {
-	if (SLACK_IS_CHANNEL(conv)) {
-		SlackChannel *chan = (SlackChannel *)conv;
-		slack_chat_send(sa->gc, chan->cid, msg, flags);
-	} else if (SLACK_IS_USER(conv)) {
-		SlackUser *user = (SlackUser *)conv;
-		slack_send_im(sa->gc, user->object.name, msg, flags);
-	} else
-		return -ENOENT;
-
-	return 1;
-}
-
-static void slack_thread_post(SlackAccount *sa, SlackObject *conv, const char *ts, const char *msg) {
-	if (!msg)
-		return;
-
-	// Temporarily set thread_ts for this one message, and then restore it
-	// afterwards.
-	// XXX: this won't always work because slack_send_im may be asynchronous
-	char *old_thread_ts = conv->thread_ts;
-	conv->thread_ts = g_strdup(ts);
-
-	int status = slack_thread_send_message(sa, conv, msg, 0);
-	if (status < 0)
-		purple_debug_error("slack", "Not able to send message \"%s\": %s\n", msg, strerror(-status));
-
-	g_free(conv->thread_ts);
-	conv->thread_ts = old_thread_ts;
 }
 
 typedef void slack_thread_lookup_ts_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts);
@@ -131,6 +98,7 @@ static gboolean slack_thread_lookup_ts_history_cb(SlackAccount *sa, gpointer dat
 	}
 
 	lookup->cb(sa, lookup->conv, lookup->data, ts);
+	g_object_unref(lookup->conv);
 	g_free(lookup);
 	return FALSE;
 }
@@ -146,7 +114,7 @@ static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *
 	}
 
 	struct thread_lookup_ts *lookup = g_new(struct thread_lookup_ts, 1);
-	lookup->conv = conv;
+	lookup->conv = g_object_ref(conv);
 	lookup->cb = cb;
 	lookup->data = data;
 
@@ -161,8 +129,11 @@ static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *
 
 static void slack_thread_post_lookup_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts) {
 	char *msg = data;
-	if (thread_ts)
-		slack_thread_post(sa, conv, thread_ts, msg);
+	if (thread_ts) {
+		int r = slack_conversation_send(sa, conv, msg, 0, thread_ts);
+		if (r < 0)
+			purple_debug_error("slack", "Not able to send message \"%s\": %s\n", msg, strerror(-r));
+	}
 	g_free(msg);
 }
 

@@ -681,9 +681,9 @@ unsigned int slack_send_typing(PurpleConnection *gc, const char *who, PurpleTypi
 		return 0;
 
 	GString *channel = append_json_string(g_string_new(NULL), user->im);
-	if (user->object.thread_ts)
+	/* if (user->object.thread_ts)
 		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, "thread_ts", user->object.thread_ts, NULL);
-	else
+	else */
 		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, NULL);
 	g_string_free(channel, TRUE);
 

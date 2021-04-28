@@ -117,11 +117,13 @@ struct send_im {
 	SlackUser *user;
 	char *msg;
 	PurpleMessageFlags flags;
+	char *thread;
 };
 
 static void send_im_free(struct send_im *send) {
 	g_object_unref(send->user);
 	g_free(send->msg);
+	g_free(send->thread);
 	g_free(send);
 }
 
@@ -156,9 +158,9 @@ static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *jso
 		return FALSE;
 	}
 
-	if (send->user->object.thread_ts)
+	if (send->thread)
 		slack_api_post(sa, send_im_api_cb, send, "chat.postMessage", "channel", send->user->im, "text", send->msg,
-				"thread_ts", send->user->object.thread_ts, "as_user", "true", NULL);
+				"thread_ts", send->thread, "as_user", "true", NULL);
 	else {
 		GString *channel = append_json_string(g_string_new(NULL), send->user->im);
 		GString *text = append_json_string(g_string_new(NULL), send->msg);
@@ -169,13 +171,7 @@ static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *jso
 	return FALSE;
 }
 
-int slack_send_im(PurpleConnection *gc, const char *who, const char *msg, PurpleMessageFlags flags) {
-	SlackAccount *sa = gc->proto_data;
-
-	SlackUser *user = g_hash_table_lookup(sa->user_names, who);
-	if (!user)
-		return -ENOENT;
-
+int slack_im_send(SlackAccount *sa, SlackUser *user, const char *msg, PurpleMessageFlags flags, const char *thread) {
 	gchar *m = slack_html_to_message(sa, msg, flags);
 	glong mlen = g_utf8_strlen(m, 16384);
 	if (mlen > 4000)
@@ -185,6 +181,7 @@ int slack_send_im(PurpleConnection *gc, const char *who, const char *msg, Purple
 	send->user = g_object_ref(user);
 	send->msg = m;
 	send->flags = flags;
+	send->thread = g_strdup(thread);
 
 	if (!*user->im)
 		slack_api_post(sa, send_im_open_cb, send, "converstations.open", "user", user->object.id, "return_im", "true", NULL);
@@ -192,4 +189,14 @@ int slack_send_im(PurpleConnection *gc, const char *who, const char *msg, Purple
 		send_im_open_cb(sa, send, NULL, NULL);
 
 	return 1;
+}
+
+int slack_send_im(PurpleConnection *gc, const char *who, const char *msg, PurpleMessageFlags flags) {
+	SlackAccount *sa = gc->proto_data;
+
+	SlackUser *user = g_hash_table_lookup(sa->user_names, who);
+	if (!user)
+		return -ENOENT;
+
+	return slack_im_send(sa, user, msg, flags, NULL);
 }

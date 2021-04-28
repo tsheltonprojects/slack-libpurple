@@ -19,7 +19,6 @@ static void slack_object_finalize(GObject *gobj) {
 	g_free(obj->last_read);
 	g_free(obj->last_mark);
 	g_free(obj->last_sent);
-	g_free(obj->thread_ts);
 }
 
 static void slack_object_class_init(SlackObjectClass *klass) {

@@ -283,7 +283,6 @@ void slack_chat_leave(PurpleConnection *gc, int cid) {
 
 struct send_chat {
 	SlackChannel *chan;
-	int cid;
 	PurpleMessageFlags flags;
 };
 
@@ -314,7 +313,7 @@ static void send_chat_cb(SlackAccount *sa, gpointer data, json_value *json, cons
 		GString *html = g_string_new(NULL);
 		slack_json_to_html(html, sa, json, &send->flags);
 		time_t mt = slack_parse_time(ts);
-		serv_got_chat_in(sa->gc, send->cid, purple_connection_get_display_name(sa->gc), send->flags, html->str, mt);
+		serv_got_chat_in(sa->gc, send->chan->cid, purple_connection_get_display_name(sa->gc), send->flags, html->str, mt);
 		g_string_free(html, TRUE);
 	}
 
@@ -326,13 +325,7 @@ static gboolean send_chat_api_cb(SlackAccount *sa, gpointer data, json_value *js
 	return FALSE;
 }
 
-int slack_chat_send(PurpleConnection *gc, int cid, const char *msg, PurpleMessageFlags flags) {
-	SlackAccount *sa = gc->proto_data;
-
-	SlackChannel *chan = g_hash_table_lookup(sa->channel_cids, GUINT_TO_POINTER(cid));
-	if (!chan)
-		return -ENOENT;
-
+int slack_channel_send(SlackAccount *sa, SlackChannel *chan, const char *msg, PurpleMessageFlags flags, const char *thread) {
 	gchar *m = slack_html_to_message(sa, msg, flags);
 	glong mlen = g_utf8_strlen(m, 16384);
 	if (mlen > 4000)
@@ -340,12 +333,11 @@ int slack_chat_send(PurpleConnection *gc, int cid, const char *msg, PurpleMessag
 
 	struct send_chat *send = g_new(struct send_chat, 1);
 	send->chan = g_object_ref(chan);
-	send->cid = cid;
 	send->flags = flags;
 
-	if (chan->object.thread_ts)
+	if (thread)
 		slack_api_post(sa, send_chat_api_cb, send, "chat.postMessage", "channel", chan->object.id, "text", m,
-				"thread_ts", chan->object.thread_ts, "as_user", "true", NULL);
+				"thread_ts", thread, "as_user", "true", NULL);
 	else {
 		GString *channel = append_json_string(g_string_new(NULL), chan->object.id);
 		GString *text = append_json_string(g_string_new(NULL), m);
@@ -356,6 +348,16 @@ int slack_chat_send(PurpleConnection *gc, int cid, const char *msg, PurpleMessag
 	g_free(m);
 
 	return 1;
+}
+
+int slack_chat_send(PurpleConnection *gc, int cid, const char *msg, PurpleMessageFlags flags) {
+	SlackAccount *sa = gc->proto_data;
+
+	SlackChannel *chan = g_hash_table_lookup(sa->channel_cids, GUINT_TO_POINTER(cid));
+	if (!chan)
+		return -ENOENT;
+
+	return slack_channel_send(sa, chan, msg, flags, NULL);
 }
 
 void slack_member_joined_channel(SlackAccount *sa, json_value *json, gboolean joined) {
