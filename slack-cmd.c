@@ -123,25 +123,7 @@ static PurpleCmdRet cmd_thread(PurpleConversation *conv, const gchar *cmd, gchar
 		return PURPLE_CMD_RET_FAILED;
 	}
 
-	if (!args || !args[0]) {
-		slack_write_message(sa, obj, "Please supply a timestamp and a message.", PURPLE_MESSAGE_SYSTEM);
-		return PURPLE_CMD_RET_OK;
-	}
-
-	gchar *line = g_strdup(args[0]);
-	gchar **split = g_strsplit(line, " ", 2);
-	if (split[0] == NULL)
-		slack_write_message(sa, obj, "Please supply a timestamp and a message.", PURPLE_MESSAGE_SYSTEM);
-	else {
-		if (split[1] == NULL) {
-			slack_write_message(sa, obj, "Please supply a message.", PURPLE_MESSAGE_SYSTEM);
-		} else {
-			slack_thread_post_to_timestamp(sa, obj, split[0], split[1]);
-		}
-	}
-
-	g_strfreev(split);
-	g_free(line);
+	slack_thread_post_to_timestamp(sa, obj, args[0], args[1]);
 
 	return PURPLE_CMD_RET_OK;
 }
@@ -156,7 +138,7 @@ static PurpleCmdRet cmd_getthread(PurpleConversation *conv, const gchar *cmd, gc
 		return PURPLE_CMD_RET_FAILED;
 	}
 
-	slack_thread_get_replies(sa, obj, args ? args[0] : "");
+	slack_thread_get_replies(sa, obj, args[0]);
 
 	return PURPLE_CMD_RET_OK;
 }
@@ -164,10 +146,10 @@ static PurpleCmdRet cmd_getthread(PurpleConversation *conv, const gchar *cmd, gc
 static GSList *commands = NULL;
 
 void slack_cmd_register() {
-	const char **cmdp = slack_cmds;
+	const char **cmdp;
 	char cmdbuf[16] = "";
 	PurpleCmdId id;
-	while (*cmdp) {
+	for (cmdp = slack_cmds; *cmdp; cmdp++) {
 		const char *cmd = *cmdp;
 		unsigned i = 0;
 		for (i = 0; cmd[i] != ' ' && cmd[i] != ':' && cmd[i] && i < sizeof(cmdbuf)-1; i++)
@@ -188,29 +170,19 @@ void slack_cmd_register() {
 			SLACK_PLUGIN_ID, cmd_delete, "delete: remove your last message", NULL);
 	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 
-	// Make sure the number of %s matches the printfs further down.
-	const char *thread_fmt = "%s thread-timestamp message:  Post messages in threads.";
-	GString *thread_help = g_string_new(NULL);
+	const char *thread_cmds[] = {"thread", "th", NULL};
+	for (cmdp = thread_cmds; *cmdp; cmdp++) {
+		id = purple_cmd_register(*cmdp, "ws", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+			SLACK_PLUGIN_ID, cmd_thread, "thread|th [thread-timestamp] [message]:  Post messages in threads.", NULL);
+		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+	}
 
-	g_string_printf(thread_help, thread_fmt, "th");
-	id = purple_cmd_register("th", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY |
-			PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS, SLACK_PLUGIN_ID, cmd_thread, thread_help->str, NULL);
-	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
-
-	g_string_printf(thread_help, thread_fmt, "thread");
-	id = purple_cmd_register("thread", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY |
-			PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS, SLACK_PLUGIN_ID, cmd_thread, thread_help->str, NULL);
-	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
-
-	g_string_free(thread_help, TRUE);
-
-	id = purple_cmd_register("getthread", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
-			SLACK_PLUGIN_ID, cmd_getthread, "getthread [thread-timestamp]: Fetch given thread", NULL);
-	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
-
-	id = purple_cmd_register("gt", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
-			SLACK_PLUGIN_ID, cmd_getthread, "gt [thread-timestamp]: Fetch given thread", NULL);
-	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+	const char *getthread_cmds[] = {"getthread", "gth", NULL};
+	for (cmdp = getthread_cmds; *cmdp; cmdp++) {
+		id = purple_cmd_register("getthread", "w", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+			SLACK_PLUGIN_ID, cmd_getthread, "getthread|gth [thread-timestamp]: Fetch given thread", NULL);
+		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+	}
 }
 
 void slack_cmd_unregister() {
