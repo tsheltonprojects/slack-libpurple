@@ -14,10 +14,13 @@ void slack_api_get(SlackAccount *sa, SlackAPICallback *callback, gpointer user_d
 void slack_api_post(SlackAccount *sa, SlackAPICallback *callback, gpointer user_data, const char *endpoint, /* const char *query_param1, const char *query_value1, */ ...) G_GNUC_NULL_TERMINATED;
 void slack_api_disconnect(SlackAccount *sa);
 
-#define SLACK_PAGINATE_LIMIT	"limit", "500"
+#define SLACK_LIMIT_ARG(COUNT)		"limit", #COUNT
+
+#define SLACK_PAGINATE_LIMIT_COUNT	500
+#define SLACK_PAGINATE_LIMIT_ARG	SLACK_LIMIT_ARG(SLACK_PAGINATE_LIMIT_COUNT)
 
 // Documented as maximum in API (2020-07-20).
-#define SLACK_HISTORY_LIMIT_NUM 1000
-#define SLACK_HISTORY_LIMIT "limit", "1000"
+#define SLACK_HISTORY_LIMIT_COUNT	1000
+#define SLACK_HISTORY_LIMIT_ARG		SLACK_LIMIT_ARG(SLACK_HISTORY_LIMIT_COUNT)
 
 #endif

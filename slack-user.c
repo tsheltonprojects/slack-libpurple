@@ -120,7 +120,7 @@ static gboolean users_list_cb(SlackAccount *sa, gpointer data, json_value *json,
 
 	char *cursor = json_get_prop_strptr1(json_get_prop(json, "response_metadata"), "next_cursor");
 	if (cursor)
-		slack_api_get(sa, users_list_cb, NULL, "users.list", "presence", "false", SLACK_PAGINATE_LIMIT, "cursor", cursor, NULL);
+		slack_api_get(sa, users_list_cb, NULL, "users.list", "presence", "false", SLACK_PAGINATE_LIMIT_ARG, "cursor", cursor, NULL);
 	else
 		slack_login_step(sa);
 	return FALSE;
@@ -128,7 +128,7 @@ static gboolean users_list_cb(SlackAccount *sa, gpointer data, json_value *json,
 
 void slack_users_load(SlackAccount *sa) {
 	g_hash_table_remove_all(sa->users);
-	slack_api_get(sa, users_list_cb, NULL, "users.list", "presence", "false", SLACK_PAGINATE_LIMIT, NULL);
+	slack_api_get(sa, users_list_cb, NULL, "users.list", "presence", "false", SLACK_PAGINATE_LIMIT_ARG, NULL);
 }
 
 struct user_retrieve {
