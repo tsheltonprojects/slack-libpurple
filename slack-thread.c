@@ -11,8 +11,6 @@
 
 #include <errno.h>
 
-G_DEFINE_TYPE(SlackThread, slack_thread, SLACK_TYPE_OBJECT);
-
 enum ThreadOp {
 	ThreadOpPost,
 	ThreadOpGetReplies,
@@ -23,30 +21,6 @@ struct thread_op {
 	enum ThreadOp op;
 	char *msg;
 };
-
-static void slack_thread_finalize(GObject *gobj) {
-	SlackThread *thread = SLACK_THREAD(gobj);
-
-	g_free(thread->thread_ts);
-
-	G_OBJECT_CLASS(slack_thread_parent_class)->finalize(gobj);
-}
-
-static void slack_thread_class_init(SlackThreadClass *klass) {
-	GObjectClass *gobj = G_OBJECT_CLASS(klass);
-	gobj->finalize = slack_thread_finalize;
-}
-
-static void slack_thread_init(SlackThread *self) {
-}
-
-static SlackThread *slack_get_thread_from_obj(SlackObject *obj) {
-	if (SLACK_IS_CHANNEL(obj))
-		return ((SlackChannel *)obj)->thread;
-	if (SLACK_IS_USER(obj))
-		return ((SlackUser *)obj)->thread;
-	return NULL;
-}
 
 static gboolean slack_is_slack_ts(const char *str) {
 	gboolean found_prefix = FALSE;
@@ -129,22 +103,21 @@ static int slack_thread_send_message(SlackAccount *sa, SlackObject *conv, const 
 }
 
 static void slack_thread_post(SlackAccount *sa, SlackObject *conv, const char *ts, const char *msg) {
-	SlackThread *th = slack_get_thread_from_obj(conv);
-
 	if (!msg)
 		return;
 
 	// Temporarily set thread_ts for this one message, and then restore it
 	// afterwards.
-	char *old_thread_ts = th->thread_ts;
-	th->thread_ts = g_strdup(ts);
+	// XXX: this won't always work because slack_send_im may be asynchronous
+	char *old_thread_ts = conv->thread_ts;
+	conv->thread_ts = g_strdup(ts);
 
 	int status = slack_thread_send_message(sa, conv, msg, 0);
 	if (status < 0)
 		purple_debug_error("slack", "Not able to send message \"%s\": %s\n", msg, strerror(-status));
 
-	g_free(th->thread_ts);
-	th->thread_ts = old_thread_ts;
+	g_free(conv->thread_ts);
+	conv->thread_ts = old_thread_ts;
 }
 
 static gboolean slack_thread_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
@@ -225,10 +198,6 @@ static void slack_thread_call_operation(SlackAccount *sa, SlackObject *obj, stru
 }
 
 void slack_thread_post_to_timestamp(SlackAccount *sa, SlackObject *obj, const char *timestr, const char *msg) {
-	SlackThread *thread = slack_get_thread_from_obj(obj);
-	if (!thread)
-		return;
-
 	if (slack_is_slack_ts(timestr))
 		slack_thread_post(sa, obj, timestr, msg);
 	else {

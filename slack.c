@@ -170,8 +170,8 @@ static guint slack_conversation_send_typing(PurpleConversation *conv, PurpleTypi
 	}
 	
 	GString *channel = append_json_string(g_string_new(NULL), slack_conversation_id(obj));
-	if (chan->thread->thread_ts)
-		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, "thread_ts", chan->thread->thread_ts, NULL);
+	if (chan->object.thread_ts)
+		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, "thread_ts", chan->object.thread_ts, NULL);
 	else
 		slack_rtm_send(sa, NULL, NULL, "typing", "channel", channel->str, NULL);
 	g_string_free(channel, TRUE);

@@ -15,7 +15,6 @@ static void slack_user_finalize(GObject *gobj) {
 	g_free(user->status);
 	g_free(user->avatar_hash);
 	g_free(user->avatar_url);
-        g_object_unref(user->thread);
 
 	G_OBJECT_CLASS(slack_user_parent_class)->finalize(gobj);
 }
@@ -26,7 +25,6 @@ static void slack_user_class_init(SlackUserClass *klass) {
 }
 
 static void slack_user_init(SlackUser *self) {
-	self->thread = g_object_new(SLACK_TYPE_THREAD, NULL);
 }
 
 SlackUser *slack_user_set(SlackAccount *sa, const char *sid, const char *name) {

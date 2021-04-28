@@ -14,9 +14,7 @@
 G_DEFINE_TYPE(SlackChannel, slack_channel, SLACK_TYPE_OBJECT);
 
 static void slack_channel_finalize(GObject *gobj) {
-	SlackChannel *chan = SLACK_CHANNEL(gobj);
-
-        g_object_unref(chan->thread);
+	// SlackChannel *chan = SLACK_CHANNEL(gobj);
 
 	G_OBJECT_CLASS(slack_channel_parent_class)->finalize(gobj);
 }
@@ -27,7 +25,6 @@ static void slack_channel_class_init(SlackChannelClass *klass) {
 }
 
 static void slack_channel_init(SlackChannel *self) {
-	self->thread = g_object_new(SLACK_TYPE_THREAD, NULL);
 }
 
 PurpleConvChat *slack_channel_get_conversation(SlackAccount *sa, SlackChannel *chan) {
@@ -346,9 +343,9 @@ int slack_chat_send(PurpleConnection *gc, int cid, const char *msg, PurpleMessag
 	send->cid = cid;
 	send->flags = flags;
 
-	if (chan->thread->thread_ts)
+	if (chan->object.thread_ts)
 		slack_api_post(sa, send_chat_api_cb, send, "chat.postMessage", "channel", chan->object.id, "text", m,
-				"thread_ts", chan->thread->thread_ts, "as_user", "true", NULL);
+				"thread_ts", chan->object.thread_ts, "as_user", "true", NULL);
 	else {
 		GString *channel = append_json_string(g_string_new(NULL), chan->object.id);
 		GString *text = append_json_string(g_string_new(NULL), m);

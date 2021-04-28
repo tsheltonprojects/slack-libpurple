@@ -5,6 +5,7 @@
 #include "slack-message.h"
 #include "slack-conversation.h"
 #include "slack-cmd.h"
+#include "slack-thread.h"
 
 /* really most commands are handled server-side, but OPT_PROTO_SLACK_COMMANDS_NATIVE doesn't quite work right (when the same command is registered for other things), so we defensively register a trivial handler for at least all the builtin commands.
  * copied from https://get.slack.help/hc/en-us/articles/201259356-using-slash-commands */

@@ -156,9 +156,9 @@ static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *jso
 		return FALSE;
 	}
 
-	if (send->user->thread->thread_ts)
+	if (send->user->object.thread_ts)
 		slack_api_post(sa, send_im_api_cb, send, "chat.postMessage", "channel", send->user->im, "text", send->msg,
-				"thread_ts", send->user->thread->thread_ts, "as_user", "true", NULL);
+				"thread_ts", send->user->object.thread_ts, "as_user", "true", NULL);
 	else {
 		GString *channel = append_json_string(g_string_new(NULL), send->user->im);
 		GString *text = append_json_string(g_string_new(NULL), send->msg);
