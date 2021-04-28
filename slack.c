@@ -253,8 +253,7 @@ static void slack_login(PurpleAccount *account) {
 
 	/* check if we have a token and set it as the password if we do */
 	if (token && *token) {
-		sa->token = g_strdup(token);
-		purple_account_set_password(sa->account, sa->token);
+		purple_account_set_password(sa->account, token);
 	}
 
 	if(!legacy_token) {
@@ -579,6 +578,9 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Download user avatars", "enable_avatar_download", FALSE));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_bool_new("Show members in channels (disabling may break channel features)", "channel_members", TRUE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_string_new("Prepend attachment lines with this string", "attachment_prefix", "▎ "));

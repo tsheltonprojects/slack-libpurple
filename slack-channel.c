@@ -208,7 +208,8 @@ static gboolean channels_info_cb(SlackAccount *sa, gpointer data, json_value *js
 		purple_conv_chat_set_topic(conv, topic_user ? topic_user->object.name : NULL, json_get_prop_strptr(json, "value"));
 	}
 
-	slack_api_get(sa, channels_members_cb, chan, "conversations.members", "channel", chan->object.id, NULL);
+	if (purple_account_get_bool(sa->account, "channel_members", TRUE))
+		slack_api_get(sa, channels_members_cb, chan, "conversations.members", "channel", chan->object.id, NULL);
 
 	if (purple_account_get_bool(sa->account, "get_history", FALSE)) {
 		slack_get_history_unread(sa, &chan->object, json);

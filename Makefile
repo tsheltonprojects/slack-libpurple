@@ -61,6 +61,8 @@ CFLAGS = \
     -O2 \
     -Wall \
     -Wno-error=strict-aliasing \
+    -Wno-error=deprecated-declarations \
+    -Wno-error=format-truncation \
     -fPIC \
     -D_DEFAULT_SOURCE=1 \
     -D_XOPEN_SOURCE=1 \
@@ -91,14 +93,15 @@ $(LIBNAME): $(C_OBJS)
 .PHONY: install install-user
 install: $(LIBNAME)
 	install -d $(PLUGIN_DIR_PURPLE)
-	install $(LIBNAME) $(PLUGIN_DIR_PURPLE)/$(LIBNAME)
+	install $(LIBNAME) $(PLUGIN_DIR_PURPLE)
 	for z in 16 22 48 ; do \
 		install -d $(DATA_ROOT_DIR_PURPLE)/pixmaps/pidgin/protocols/$$z ; \
 		install -m 0644 img/slack$$z.png $(DATA_ROOT_DIR_PURPLE)/pixmaps/pidgin/protocols/$$z/slack.png ; \
 	done
 
 install-user: $(LIBNAME)
-	install -D $(LIBNAME) $(HOME)/.purple/plugins/$(LIBNAME)
+	install -d $(HOME)/.purple/plugins
+	install $(LIBNAME) $(HOME)/.purple/plugins
 
 .PHONY: uninstall
 uninstall: $(LIBNAME)
