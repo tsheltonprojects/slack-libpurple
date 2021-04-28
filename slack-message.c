@@ -9,66 +9,7 @@
 #include "slack-channel.h"
 #include "slack-conversation.h"
 #include "slack-message.h"
-
-GString *slack_get_thread_color(const char *ts) {
-	// Produce a color that works against white background by the following
-	// algorithm:
-	//
-	// 1. Pick a pseudo-random number by seeding it with ts, IOW it is
-	// deterministic.
-	//
-	// 2. Pick a 24-bit RGB value, but throw away the the original highest
-	// bit of each byte, resulting in a range from 000000 to 7f7f7f.
-	//
-	// 3. Pick exactly one base color that will receive its highest bit, or
-	// possibly none of them.
-	//
-	// This gives quite a random color, but often with a dominant RGB
-	// component, never white, and deterministic from ts.
-
-	guint r = g_str_hash(ts);
-
-	// Pick random RGB color.
-	guint color = r & 0x7f7f7f;
-
-	// Pick random RGB high bit by shifting 0x800000 down by 0 (B), 8 (G),
-	// 16 (R), or 24 (0). 0x3000000 are the first bits of 'r' we didn't use
-	// yet.
-	guint pref_color = (0x800000 >> ((r & 0x3000000) >> 21));
-	color |= pref_color;
-
-	GString *tmp = g_string_sized_new(7);
-	g_string_printf(tmp, "%06x", color);
-
-	return tmp;
-}
-
-void slack_append_formatted_thread_timestamp(GString *str, const char *ts) {
-	time_t tt = slack_parse_time_str(ts);
-	time_t now = time(NULL);
-	struct tm now_time, thread_time;
-	localtime_r(&tt, &thread_time);
-	localtime_r(&now, &now_time);
-	const char *time_fmt;
-
-	GString *color = slack_get_thread_color(ts);
-
-	if (thread_time.tm_yday != now_time.tm_yday || thread_time.tm_year != now_time.tm_year)
-		time_fmt = "%x-%X";
-	else
-		time_fmt = "%X";
-
-	char time_str[100];
-	strftime(time_str, sizeof(time_str), time_fmt, &thread_time);
-
-	g_string_append(str, "<font color=\"#");
-	g_string_append(str, color->str);
-	g_string_append(str, "\">");
-	g_string_append(str, time_str);
-	g_string_append(str, "</font>");
-
-	g_string_free(color, TRUE);
-}
+#include "slack-thread.h"
 
 gchar *slack_html_to_message(SlackAccount *sa, const char *s, PurpleMessageFlags flags) {
 

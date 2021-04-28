@@ -24,23 +24,6 @@ void slack_write_message(SlackAccount *sa, SlackObject *obj, const char *html, P
  */
 void slack_handle_message(SlackAccount *sa, SlackObject *conv, json_value *json, PurpleMessageFlags flags, gboolean force_threads);
 
-/**
- * Returns a deterministic color for a thread.
- *
- * Returned string must be g_string_free'd.
- *
- * @param ts "thread_ts" string value from Slack.
- */
-GString *slack_get_thread_color(const char *ts);
-
-/**
- * Appends a formatted ts timestamp to str.
- *
- * @param str String to append to. Will be modified.
- * @param ts Timestamp for format and append.
- */
-void slack_append_formatted_thread_timestamp(GString *str, const char *ts);
-
 /* RTM event handlers */
 gboolean slack_message(SlackAccount *sa, json_value *json);
 void slack_user_typing(SlackAccount *sa, json_value *json);
