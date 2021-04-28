@@ -61,7 +61,7 @@ CFLAGS = \
     -O2 \
     -Wall \
     -Wno-error=strict-aliasing \
-    -Wno-error=deprecated-declarations \
+    -Wno-deprecated-declarations \
     -Wno-error=format-truncation \
     -fPIC \
     -D_DEFAULT_SOURCE=1 \
