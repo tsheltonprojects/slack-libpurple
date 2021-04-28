@@ -76,7 +76,7 @@ static gboolean conversation_counts_cb(SlackAccount *sa, gpointer data, json_val
 		return FALSE;
 	}
 
-	gboolean load_history = purple_account_get_bool(sa->account, "load_history", FALSE);
+	gboolean load_history = purple_account_get_bool(sa->account, "connect_history", FALSE);
 
 	json_value *ims = json_get_prop_type(json, "ims", array);
 	for (unsigned i = 0; i < ims->u.array.length; i++) {
@@ -90,7 +90,7 @@ static gboolean conversation_counts_cb(SlackAccount *sa, gpointer data, json_val
 		conversation_counts_check_unread(sa, (SlackObject *)user, im, load_history);
 	}
 
-	load_history = load_history && purple_account_get_bool(sa->account, "get_history", FALSE);
+	load_history = load_history && purple_account_get_bool(sa->account, "open_history", FALSE);
 	conversation_counts_channels(sa, json, "channels", SLACK_CHANNEL_PUBLIC, load_history);
 	conversation_counts_channels(sa, json, "groups", SLACK_CHANNEL_GROUP, load_history);
 	conversation_counts_channels(sa, json, "mpims", SLACK_CHANNEL_MPIM, load_history);
@@ -279,7 +279,7 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 	if (SLACK_IS_CHANNEL(conv)) {
 		SlackChannel *chan = (SlackChannel*)conv;
 		if (!chan->cid) {
-			if (purple_account_get_bool(sa->account, "get_history", FALSE)) {
+			if (purple_account_get_bool(sa->account, "open_history", FALSE)) {
 				/* this will call back into get_history */
 				slack_chat_open(sa, chan);
 			}
@@ -328,7 +328,7 @@ void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *j
 	*/
 
 	int limit;
-	if (purple_account_get_bool(sa->account, "display_threads", TRUE))
+	if (purple_account_get_bool(sa->account, "thread_history", FALSE))
 		limit = SLACK_HISTORY_LIMIT_COUNT;
 	else
 		// Optimize when we're not fetching thread replies. See above

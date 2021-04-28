@@ -208,7 +208,7 @@ static gboolean channels_info_cb(SlackAccount *sa, gpointer data, json_value *js
 	if (purple_account_get_bool(sa->account, "channel_members", TRUE))
 		slack_api_get(sa, channels_members_cb, chan, "conversations.members", "channel", chan->object.id, NULL);
 
-	if (purple_account_get_bool(sa->account, "get_history", FALSE)) {
+	if (purple_account_get_bool(sa->account, "open_history", FALSE)) {
 		slack_get_history_unread(sa, &chan->object, json);
 	}
 	return FALSE;

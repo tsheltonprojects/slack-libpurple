@@ -130,7 +130,7 @@ static void slack_conversation_created(PurpleConversation *conv, void *data) {
 	SlackAccount *sa = get_slack_account(conv->account);
 	if (!sa)
 		return;
-	if (!purple_account_get_bool(sa->account, "get_history", FALSE))
+	if (!purple_account_get_bool(sa->account, "open_history", FALSE))
 		return;
 
 	SlackUser *user = g_hash_table_lookup(sa->user_names, purple_conversation_get_name(conv));
@@ -539,7 +539,6 @@ static PurplePluginInfo info = {
 
 static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 {
-
 	prpl_info.user_splits = g_list_append(prpl_info.user_splits,
 		purple_account_user_split_new("Host", "slack.com", '%'));
 
@@ -556,16 +555,19 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 		purple_account_option_string_new("Prepend thread replies with this string", "thread_indicator", "⤷ "));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
-		purple_account_option_bool_new("Display parent indicator when thread is opened", "display_parent_indicator", TRUE));
-
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_string_new("Prepend parent messages with this string", "parent_indicator", "◈ "));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
-		purple_account_option_bool_new("Retrieve unread IM (*and conversation) history on connect", "load_history", FALSE));
+		purple_account_option_bool_new("Display parent indicator when thread is opened", "display_parent_indicator", TRUE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
-		purple_account_option_bool_new("Retrieve unread history on conversation open (*and connect)", "get_history", FALSE));
+		purple_account_option_bool_new("Retrieve unread IM (*and channel) history on connect", "connect_history", FALSE));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_bool_new("Retrieve unread history on conversation open (*and connect)", "open_history", FALSE));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_bool_new("Retrieve unread thread history too (slow!)", "thread_history", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Download user avatars", "enable_avatar_download", FALSE));
