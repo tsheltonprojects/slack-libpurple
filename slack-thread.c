@@ -6,47 +6,38 @@
 #include "slack-thread.h"
 
 #include <debug.h>
-
+#include <time.h>
 #include <errno.h>
 
+/* it'd be nice to combine these two functions and allow .sub on normal times and larger ranges (%H:%S) */
 static gboolean slack_is_slack_ts(const char *str) {
-	gboolean found_prefix = FALSE;
-	gboolean found_dot = FALSE;
-	gboolean found_suffix = FALSE;
-	for (int i = 0; str[i] != '\0'; i++) {
-		if (str[i] >= '0' && str[i] <= '9') {
-			if (found_dot)
-				found_suffix = TRUE;
-			else
-				found_prefix = TRUE;
-			continue;
-		}
-		if (str[i] == '.') {
-			if (found_dot)
-				return FALSE;
-			else
-				found_dot = TRUE;
-		}
-	}
-	return found_prefix && found_dot && found_suffix;
+	/* 0000000000.000000 */
+	int i = 0;
+	while (str[i] >= '0' && str[i] <= '9')
+		i ++;
+	if (i != 10 || str[i++] != '.')
+		return FALSE;
+	while (str[i] >= '0' && str[i] <= '9')
+		i ++;
+	if (i != 17 || str[i])
+		return FALSE;
+	return TRUE;
 }
 
 static time_t slack_get_ts_from_time_str(const char *time_str) {
-	struct tm tm;
-	char *result;
-
+#ifndef _WIN32
 	time_t ts = time(NULL);
-	localtime_r(&ts, &tm);
 
-	// Time only.
-	result = strptime(time_str, "%X", &tm);
-	if (result == time_str + strlen(time_str))
-		return mktime(&tm);
-
-	// Date and time.
-	result = strptime(time_str, "%x-%X", &tm);
-	if (result == time_str + strlen(time_str))
-		return mktime(&tm);
+	static const char *formats[] = {"%x-%X", "%X", NULL};
+	const char **fmt;
+	for (fmt = formats; *fmt; fmt++) {
+		struct tm tm;
+		localtime_r(&ts, &tm);
+		char *result = strptime(time_str, *fmt, &tm);
+		if (result && !*result)
+			return mktime(&tm);
+	}
+#endif
 
 	return 0;
 }
