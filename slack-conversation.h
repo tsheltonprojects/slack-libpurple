@@ -7,6 +7,8 @@
 #include "slack-channel.h"
 #include "slack-im.h"
 
+#include <errno.h>
+
 static inline const char *slack_conversation_id(SlackObject *chan) {
 	g_return_val_if_fail(chan, NULL);
 	if (SLACK_IS_CHANNEL(chan))
