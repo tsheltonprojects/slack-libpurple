@@ -201,7 +201,7 @@ void slack_thread_post_to_timestamp(SlackAccount *sa, SlackObject *obj, const ch
 
 static void slack_thread_get_replies_lookup_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts) {
 	if (thread_ts)
-		slack_get_thread_replies(sa, conv, thread_ts);
+		slack_get_history(sa, conv, NULL, SLACK_HISTORY_LIMIT_COUNT, thread_ts, TRUE);
 }
 
 void slack_thread_get_replies(SlackAccount *sa, SlackObject *obj, const char *timestr) {

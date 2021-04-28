@@ -347,29 +347,28 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 	else if (flags && subtype && strcmp(subtype, "thread_broadcast") != 0)
 		*flags |= PURPLE_MESSAGE_SYSTEM;
 
-	gboolean display_parent_indicator = purple_account_get_bool(sa->account, "display_parent_indicator", TRUE);
 	const char *ts = json_get_prop_strptr(message, "ts");
 	const char *thread = json_get_prop_strptr(message, "thread_ts");
-	if (thread && (display_parent_indicator || g_strcmp0(ts, thread))) {
-		if (g_strcmp0(ts, thread))
+	gboolean is_thread = thread && slack_ts_cmp(ts, thread) != 0;
+	if (is_thread || (thread && purple_account_get_bool(sa->account, "display_parent_indicator", TRUE))) {
+		if (is_thread)
 			g_string_append(html, purple_account_get_string(sa->account, "thread_indicator", "⤷ "));
 		else
 			g_string_append(html, purple_account_get_string(sa->account, "parent_indicator", "◈ "));
 
 		slack_append_formatted_thread_timestamp(html, thread);
+		g_string_append(html, ":  ");
 
 		// If this message is part of a thread, and isn't the parent
 		// message, color it differently to distinguish it from the
 		// channel messages.
-		if (g_strcmp0(ts, thread))
-			g_string_append(html, ":  <font color=\"#606060\">");
-		else
-			g_string_append(html, ":  ");
+		if (is_thread)
+			g_string_append(html, "<font color=\"#606060\">");
 	}
 
 	slack_message_to_html(html, sa, json_get_prop_strptr(message, "text"), flags, NULL);
 
-	if (thread && g_strcmp0(ts, thread))
+	if (is_thread)
 		g_string_append(html, "</font>");
 
 	json_value *files = json_get_prop_type(message, "files", array);
@@ -385,27 +384,16 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 }
 
 void slack_write_message(SlackAccount *sa, SlackObject *obj, const char *html, PurpleMessageFlags flags) {
-	if (!obj) {
-		return;
-	}
+	g_return_if_fail(obj);
 
 	SlackUser *user = sa->self;
 	flags |= PURPLE_MESSAGE_SEND;
-
-	struct timeval tv = { 0, 0 };
-	gettimeofday(&tv, NULL);
-	time_t mt = tv.tv_sec;
+	time_t mt = time(NULL);
 
 	if (SLACK_IS_CHANNEL(obj)) {
 		SlackChannel *chan = (SlackChannel*)obj;
 		/* Channel */
-		if (!chan->cid) {
-			if (!purple_account_get_bool(sa->account, "open_chat", FALSE)) {
-				return;
-			}
-			slack_chat_open(sa, chan);
-		}
-
+		g_return_if_fail(chan->cid);
 		serv_got_chat_in(sa->gc, chan->cid, user->object.name, flags, html, mt);
 	} else if (SLACK_IS_USER(obj)) {
 		SlackUser *im = (SlackUser*)obj;
@@ -419,19 +407,28 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		return;
 	}
 
-	gboolean display_threads = purple_account_get_bool(sa->account, "display_threads", TRUE);
-	const char *thread = json_get_prop_strptr(json, "thread_ts");
-	json_value *ts          = json_get_prop(json, "ts");
+	json_value *message     = json;
+	json_value *ts = json_get_prop(message, "ts");
 	const char *tss = json_get_strptr(ts);
-	const char *subtype = json_get_prop_strptr(json, "subtype");
+	const char *subtype = json_get_prop_strptr(message, "subtype");
+	const char *thread = json_get_prop_strptr(message, "thread_ts");
 
-	if (thread && g_strcmp0(tss, thread) && g_strcmp0(subtype, "thread_broadcast") && !display_threads && !force_threads) {
-		purple_debug_misc("slack", "Thread replies are turned off, ignoring message.\n");
+	if (thread && slack_ts_cmp(tss, thread) && g_strcmp0(subtype, "thread_broadcast") && !force_threads &&
+		!purple_account_get_bool(sa->account, "display_threads", TRUE))
 		return;
+
+	if (!g_strcmp0(subtype, "message_replied")) {
+		message = json_get_prop_type(json, "message", object);
+		if (!message || !purple_account_get_bool(sa->account, "display_parent_indicator", TRUE))
+			return;
+		int reply_count = json_get_prop_val(message, "reply_count", integer, 0);
+		ts = json_get_prop(message, "ts");
+		tss = json_get_strptr(ts);
+		thread = json_get_prop_strptr(message, "thread_ts");
+		if (reply_count != 1 || !thread)
+			return;
 	}
 
-	time_t mt = slack_parse_time(ts);
-	json_value *message     = json;
 	GString *html = g_string_new(NULL);
 
 	if (!g_strcmp0(subtype, "message_changed")) {
@@ -456,19 +453,6 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		}
 		g_string_append(html, ")");
 	}
-	else if (!g_strcmp0(subtype, "message_replied")) {
-		json_value *submessage = json_get_prop_type(json, "message", object);
-		gboolean display_parent_indicator = purple_account_get_bool(sa->account, "display_parent_indicator", TRUE);
-		if (display_parent_indicator && submessage) {
-			int reply_count = json_get_prop_val(submessage, "reply_count", integer, 0);
-			const char *thread = json_get_prop_strptr(submessage, "thread_ts");
-			if (reply_count == 1 && thread)
-				slack_handle_message(sa, obj, submessage, flags, FALSE);
-		}
-
-		g_string_free(html, TRUE);
-		return;
-	}
 	else
 		slack_json_to_html(html, sa, message, &flags);
 
@@ -479,6 +463,7 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		return;
 	}
 
+	time_t mt = slack_parse_time(ts);
 	const char *user_id = json_get_prop_strptr(message, "user");
 	SlackUser *user = NULL;
 	if (slack_object_id_is(sa->self->object.id, user_id)) {
