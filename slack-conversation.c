@@ -229,32 +229,32 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 	if (!list || error) {
 		purple_debug_error("slack", "Error loading channel history: %s\n", error ?: "missing");
 	} else {
-		gboolean display_threads = purple_account_get_bool(sa->account, "display_threads", TRUE);
+		gboolean display_threads = !h->thread && purple_account_get_bool(sa->account, "display_threads", TRUE);
 
 		// Annoying. Conversations are listed in reverse order,
 		// whereas threads are listed in correct order.
-		for (unsigned i = h->thread ? 1 : list->u.array.length;
-				h->thread ? i <= list->u.array.length : i > 0;
-				i = h->thread ? i+1 : i-1) {
+		for (int i = h->thread ? 0 : list->u.array.length-1;
+				h->thread ? i < list->u.array.length : i >= 0;
+				h->thread ? i++ : i--) {
 
-			json_value *msg = list->u.array.values[i-1];
+			json_value *msg = list->u.array.values[i];
 			if (g_strcmp0(json_get_prop_strptr(msg, "type"), "message"))
 				continue;
 
 			const char *ts = json_get_prop_strptr(msg, "ts");
 			const char *thread_ts = json_get_prop_strptr(msg, "thread_ts");
-
-			if (h->thread && !g_strcmp0(ts, thread_ts))
-				// When we are fetching threads, don't display
-				// the parent message, because it has already
-				// been displayed when fetching the non-thread
-				// messages.
-				continue;
-
-			if (display_threads && !h->thread && thread_ts && !g_strcmp0(ts, thread_ts)) {
-				const char *latest_reply = json_get_prop_strptr(msg, "latest_reply");
-				if (!latest_reply || !h->since || slack_ts_cmp(latest_reply, h->since) > 0)
-					slack_get_history(sa, h->conv, h->since, SLACK_HISTORY_LIMIT_COUNT, thread_ts, FALSE);
+			if (thread_ts && !slack_ts_cmp(ts, thread_ts)) {
+				if (h->thread)
+					// When we are fetching threads, don't display
+					// the parent message, because it has already
+					// been displayed when fetching the non-thread
+					// messages.
+					continue;
+				if (display_threads) {
+					const char *latest_reply = json_get_prop_strptr(msg, "latest_reply");
+					if (!latest_reply || !h->since || slack_ts_cmp(latest_reply, h->since) > 0)
+						slack_get_history(sa, h->conv, h->since, SLACK_HISTORY_LIMIT_COUNT, thread_ts, FALSE);
+				}
 			}
 
 			if (!ts || !h->since || slack_ts_cmp(ts, h->since) > 0)
@@ -272,7 +272,8 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 
 	if (count == 0)
 		return;
-	if (since && !g_strcmp0(since, "0000000000.000000"))
+
+	if (since && !slack_ts_cmp(since, "0000000000.000000"))
 		/* even though it gives this as a last_read, it doesn't like it in since */
 		since = NULL;
 
@@ -287,10 +288,7 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 		}
 	}
 	const char *id = slack_conversation_id(conv);
-	if (id == NULL) {
-		get_history_cb(sa, conv, NULL, "no conversation ID");
-		return;
-	}
+	g_return_if_fail(id);
 
 	struct get_history *h = g_new(struct get_history, 1);
 	h->conv = g_object_ref(conv);
@@ -298,46 +296,42 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 	h->thread = (thread_ts != NULL);
 	h->force_threads = force_threads;
 
+	if (!thread_ts && purple_account_get_bool(sa->account, "thread_history", FALSE)) {
+		/*
+		  To get thread replies we have to get around some serious deficiences
+		  in the public API: There no way to query replies by date. And we have
+		  to do that in order to get automatic history when you log in. The only
+		  way I have found is to query as many channel messages as possible,
+		  check what their "latest_reply" field is, and use those to decide what
+		  threads to query. Checking all messages this way is completely
+		  unrealistic, but fortunately, threads tend to be short-lived, so we
+		  can use one single API call to get the last 1000 messages (maximum
+		  that Slack allows), and check that without much risk of being rate
+		  limited. This means the mechanics for querying by time is (mostly)
+		  moved to the client side, and when limiting by time, we still fetch
+		  all the last 1000 messages, but we only display those that match the
+		  time range.
+
+		  Yes, this is horrible, and it will not work for any thread older than
+		  1000 main-channel messages ago. If anyone knows how to query threads
+		  in a more efficient way, I'm very interested in hearing it.
+		*/
+		since = NULL;
+		count = SLACK_HISTORY_LIMIT_COUNT;
+	}
+
 	char count_buf[6] = "";
 	snprintf(count_buf, 5, "%u", MIN(count, SLACK_HISTORY_LIMIT_COUNT));
 	if (thread_ts)
-		slack_api_get(sa, get_history_cb, h, "conversations.replies", "channel", id, "limit", count_buf, "ts", thread_ts, NULL);
+		slack_api_get(sa, get_history_cb, h, "conversations.replies", "channel", id, "oldest", since ?: "0", "limit", count_buf, "ts", thread_ts, NULL);
 	else
-		slack_api_get(sa, get_history_cb, h, "conversations.history", "channel", id, "limit", count_buf, NULL);
+		slack_api_get(sa, get_history_cb, h, "conversations.history", "channel", id, "oldest", since ?: "0", "limit", count_buf, NULL);
 }
 
 void slack_get_history_unread(SlackAccount *sa, SlackObject *conv, json_value *json) {
-	/*
-	  To get thread replies we have to get around some serious deficiences
-	  in the public API: There no way to query replies by date. And we have
-	  to do that in order to get automatic history when you log in. The only
-	  way I have found is to query as many channel messages as possible,
-	  check what their "latest_reply" field is, and use those to decide what
-	  threads to query. Checking all messages this way is completely
-	  unrealistic, but fortunately, threads tend to be short-lived, so we
-	  can use one single API call to get the last 1000 messages (maximum
-	  that Slack allows), and check that without much risk of being rate
-	  limited. This means the mechanics for querying by time is (mostly)
-	  moved to the client side, and when limiting by time, we still fetch
-	  all the last 1000 messages, but we only display those that match the
-	  time range.
-
-	  Yes, this is horrible, and it will not work for any thread older than
-	  1000 main-channel messages ago. If anyone knows how to query threads
-	  in a more efficient way, I'm very interested in hearing it.
-	*/
-
-	int limit;
-	if (purple_account_get_bool(sa->account, "thread_history", FALSE))
-		limit = SLACK_HISTORY_LIMIT_COUNT;
-	else
-		// Optimize when we're not fetching thread replies. See above
-		// comment.
-		limit = json_get_prop_val(json, "unread_count", integer, -1);
-
 	slack_get_history(sa, conv,
 			json_get_prop_strptr(json, "last_read"),
-			limit,
+			json_get_prop_val(json, "unread_count", integer, -1),
 			NULL,
 			FALSE);
 }
@@ -348,11 +342,10 @@ static gboolean get_conversation_unread_cb(SlackAccount *sa, gpointer data, json
 
 	if (!json || error) {
 		purple_debug_error("slack", "Error getting conversation unread info: %s\n", error ?: "missing");
-		g_object_unref(conv);
-		return FALSE;
 	}
-
-	slack_get_history_unread(sa, conv, json);
+	else {
+		slack_get_history_unread(sa, conv, json);
+	}
 	g_object_unref(conv);
 	return FALSE;
 }
