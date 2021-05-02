@@ -9,7 +9,7 @@
  * @param str String to append to. Will be modified.
  * @param ts Timestamp for format and append.
  */
-void slack_append_formatted_thread_timestamp(SlackAccount *sa, GString *str, const char *ts);
+void slack_append_formatted_thread_timestamp(SlackAccount *sa, GString *str, const char *ts, gboolean exact);
 void slack_thread_post_to_timestamp(SlackAccount *sa, SlackObject *obj, const char *timestr, const char *msg);
 void slack_thread_get_replies(SlackAccount *sa, SlackObject *obj, const char *timestr);
 

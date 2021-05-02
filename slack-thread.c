@@ -16,7 +16,7 @@
  *
  * @param ts "thread_ts" string value from Slack.
  */
-static GString *slack_get_thread_color(const char *ts) {
+static void slack_get_thread_color(char s[8], const char *ts) {
 	// Produce a color that works against white background by the following
 	// algorithm:
 	//
@@ -43,20 +43,20 @@ static GString *slack_get_thread_color(const char *ts) {
 	guint pref_color = (0x800000 >> ((r & 0x3000000) >> 21));
 	color |= pref_color;
 
-	GString *tmp = g_string_sized_new(7);
-	g_string_printf(tmp, "%06x", color);
-
-	return tmp;
+	snprintf(s, 7, "%06x", color);
 }
 
-void slack_append_formatted_thread_timestamp(SlackAccount *sa, GString *str, const char *ts) {
-	time_t tt = slack_parse_time_str(ts);
+static void slack_format_thread_time(SlackAccount *sa, char s[128], const char *ts, gboolean exact) {
+	char *te;
+	time_t tt = strtoul(ts, &te, 10); // slack_parse_time_str(ts)
+	if (!tt) {
+		strncpy(s, ts, 127);
+		return;
+	}
 	time_t now = time(NULL);
 	struct tm now_time, thread_time;
 	localtime_r(&tt, &thread_time);
 	localtime_r(&now, &now_time);
-
-	GString *color = slack_get_thread_color(ts);
 
 	const char *time_fmt;
 	if (thread_time.tm_yday == now_time.tm_yday && thread_time.tm_year == now_time.tm_year)
@@ -64,70 +64,91 @@ void slack_append_formatted_thread_timestamp(SlackAccount *sa, GString *str, con
 	else
 		time_fmt = purple_account_get_string(sa->account, "thread_datestamp", "%x-%X");
 
-	char time_str[100];
-	strftime(time_str, sizeof(time_str), time_fmt, &thread_time);
+	size_t r = strftime(s, 128, time_fmt, &thread_time);
+	if (!r) {
+		/* fall back */
+		r = snprintf(s, 128, "%ld", tt);
+	}
 	/* unfortunately these formats can have spaces in some locales, which
 	 * won't work for argument parsing, so make them underscores */
-	char *tss = time_str;
+	char *tss = s;
 	while ((tss = strchr(tss, ' ')))
 		*tss = '_';
 
-	g_string_append(str, "<font color=\"#");
-	g_string_append(str, color->str);
-	g_string_append(str, "\">");
-	g_string_append(str, time_str);
-	g_string_append(str, "</font>");
-
-	g_string_free(color, TRUE);
+	if (exact)
+		strncpy(&s[r], te, 127-r);
 }
 
-/* it'd be nice to combine these two functions and allow .sub on normal times and larger ranges (%H:%S) */
-static gboolean slack_is_slack_ts(const char *str) {
-	/* 0000000000.000000 */
-	int i = 0;
-	while (str[i] >= '0' && str[i] <= '9')
-		i ++;
-	if (i != 10 || str[i++] != '.')
-		return FALSE;
-	while (str[i] >= '0' && str[i] <= '9')
-		i ++;
-	if (i != 17 || str[i])
-		return FALSE;
-	return TRUE;
-}
+static void slack_parse_thread_time(SlackAccount *sa, const char *s, char start[20], char end[20]) {
+	time_t t = 0;
+	char *e = NULL;
 
-static time_t slack_get_ts_from_time_str(SlackAccount *sa, const char *time_str) {
+	/* first try posix seconds */
+	if (s[0] >= '0' && s[0] <= '9') {
+		t = strtoul(s, &e, 10);
+		if (t && e - s >= 10)
+			goto sub;
+	}
+
 #ifndef _WIN32
-	time_t ts = time(NULL);
-	time_t tr = 0;
-
-	char *time_strs = NULL;
-	if (strchr(time_str, '_')) {
-		/* undo the underscore replacement above (try both) */
-		time_strs = g_strdup(time_str);
-		char *tss = time_strs;
+	char *su = NULL;
+	if (strchr(s, '_')) {
+		/* undo the underscore replacement in slack_format_thread_time (try both) */
+		su = g_strdup(s);
+		char *tss = su;
 		while ((tss = strchr(tss, '_')))
 			*tss = ' ';
 	}
 	const char *formats[] = {
 		purple_account_get_string(sa->account, "thread_datestamp", "%x-%X"),
 		purple_account_get_string(sa->account, "thread_timestamp", "%X"),
-		NULL};
+		NULL };
 	const char **fmt;
+	time(&t);
 	for (fmt = formats; *fmt; fmt++) {
 		struct tm tm;
-		localtime_r(&ts, &tm);
-		char *result = strptime(time_str, *fmt, &tm);
-		if ((!result || *result) && time_strs)
-			result = strptime(time_strs, *fmt, &tm);
-		if (result && !*result) {
-			tr = mktime(&tm);
+		localtime_r(&t, &tm);
+		e = strptime(s, *fmt, &tm);
+		if (!e && su)
+			e = strptime(su, *fmt, &tm);
+		if (e) {
+			t = mktime(&tm);
 			break;
 		}
 	}
+	g_free(su);
 #endif
-	g_free(time_strs);
-	return tr;
+
+sub:
+	if (!e)
+		return;
+	if (*e == '.') {
+		e++;
+		int i = 0;
+		while (e[i] >= '0' && e[i] <= '9')
+			i ++;
+		if (!e[i] && i == 6)
+			snprintf(start, 19, "%lu.%s", t, e);
+		return;
+	}
+	if (!*e) {
+		snprintf(start, 19, "%lu.000000", t);
+		snprintf(end, 19, "%lu.999999", t);
+	}
+}
+
+void slack_append_formatted_thread_timestamp(SlackAccount *sa, GString *str, const char *ts, gboolean exact) {
+	char color[8] = "";
+	slack_get_thread_color(color, ts);
+
+	char time_str[128] = "";
+	slack_format_thread_time(sa, time_str, ts, exact);
+
+	g_string_append(str, "<font color=\"#");
+	g_string_append(str, color);
+	g_string_append(str, "\">");
+	g_string_append(str, time_str);
+	g_string_append(str, "</font>");
 }
 
 typedef void slack_thread_lookup_ts_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts);
@@ -151,22 +172,17 @@ static gboolean slack_thread_lookup_ts_history_cb(SlackAccount *sa, gpointer dat
 
 	}
 	else if (list->u.array.length > 1) {
-		GString *errmsg = g_string_new("Thread timestamp is ambiguous. Please use one of the following unambiguous thread IDs:\n");
+		GString *errmsg = g_string_new("Thread timestamp is ambiguous. Please use one of the following unambiguous thread IDs:<br>");
 		for (unsigned i = 0; i < list->u.array.length; i++) {
 			json_value *entry = list->u.array.values[i];
+			/* matching slack_json_to_html */
 			const char *ts = json_get_prop_strptr(entry, "ts");
-			if (ts) {
-				const char *msg = json_get_prop_strptr(entry, "text");
-				GString *color = slack_get_thread_color(ts);
-				g_string_append(errmsg, "<font color=\"#");
-				g_string_append(errmsg, color->str);
-				g_string_append(errmsg, "\">");
-				g_string_append(errmsg, ts);
-				g_string_append(errmsg, "</font> (\"");
-				g_string_append(errmsg, msg ?: "NULL");
-				g_string_append(errmsg, "\")\n");
-				g_string_free(color, TRUE);
-			}
+			g_string_append(errmsg, purple_account_get_string(sa->account, "parent_indicator", "◈ "));
+			if (ts)
+				slack_append_formatted_thread_timestamp(sa, errmsg, ts, TRUE);
+			g_string_append(errmsg, ": ");
+			slack_message_to_html(errmsg, sa, json_get_prop_strptr(entry, "text"), 0, NULL);
+			g_string_append(errmsg, "<br>");
 		}
 		slack_write_message(sa, lookup->conv, errmsg->str, PURPLE_MESSAGE_SYSTEM);
 		g_string_free(errmsg, TRUE);
@@ -183,27 +199,23 @@ static gboolean slack_thread_lookup_ts_history_cb(SlackAccount *sa, gpointer dat
 }
 
 static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *cb, SlackObject *conv, gpointer data, const char *timestr) {
-	if (slack_is_slack_ts(timestr))
-		return cb(sa, conv, data, timestr);
-
-	time_t ts = slack_get_ts_from_time_str(sa, timestr);
-	if (ts == 0) {
+	char start[20] = "";
+	char end[20] = "";
+	slack_parse_thread_time(sa, timestr, start, end);
+	if (!*start) {
 		slack_write_message(sa, conv, "Could not parse thread timestamp.", PURPLE_MESSAGE_SYSTEM);
 		return cb(sa, conv, data, NULL);
 	}
+	if (!*end)
+		return cb(sa, conv, data, start);
 
 	struct thread_lookup_ts *lookup = g_new(struct thread_lookup_ts, 1);
 	lookup->conv = g_object_ref(conv);
 	lookup->cb = cb;
 	lookup->data = data;
 
-	char oldest[20] = "";
-	snprintf(oldest, 19, "%ld.000000", ts);
-	char latest[20] = "";
-	snprintf(latest, 19, "%ld.999999", ts);
-
 	const char *id = slack_conversation_id(conv);
-	slack_api_get(sa, slack_thread_lookup_ts_history_cb, lookup, "conversations.history", "channel", id, "oldest", oldest, "latest", latest, NULL);
+	slack_api_get(sa, slack_thread_lookup_ts_history_cb, lookup, "conversations.history", "channel", id, "oldest", start, "latest", end, "inclusive", "1", NULL);
 }
 
 static void slack_thread_post_lookup_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts) {

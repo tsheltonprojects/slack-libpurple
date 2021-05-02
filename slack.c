@@ -552,6 +552,9 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 		purple_account_option_bool_new("Display thread replies", "display_threads", TRUE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_bool_new("Re-display parent with indicator when thread is opened", "display_parent_indicator", TRUE));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_string_new("Prepend thread replies with this string", "thread_indicator", "⤷ "));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
@@ -562,9 +565,6 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_string_new("Thread timestamp format for previous days (date and time)", "thread_datestamp", "%x-%X"));
-
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
-		purple_account_option_bool_new("Display parent indicator when thread is opened", "display_parent_indicator", TRUE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Retrieve unread IM (*and channel) history on connect", "connect_history", FALSE));
