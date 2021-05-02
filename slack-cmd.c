@@ -179,7 +179,7 @@ void slack_cmd_register() {
 
 	static const char *getthread_cmds[] = {"getthread", "gth", NULL};
 	for (cmdp = getthread_cmds; *cmdp; cmdp++) {
-		id = purple_cmd_register("getthread", "w", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+		id = purple_cmd_register(*cmdp, "w", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
 			SLACK_PLUGIN_ID, cmd_getthread, "getthread|gth [thread-timestamp]: Fetch given thread", NULL);
 		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 	}

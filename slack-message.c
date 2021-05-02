@@ -356,7 +356,7 @@ void slack_json_to_html(GString *html, SlackAccount *sa, json_value *message, Pu
 		else
 			g_string_append(html, purple_account_get_string(sa->account, "parent_indicator", "◈ "));
 
-		slack_append_formatted_thread_timestamp(html, thread);
+		slack_append_formatted_thread_timestamp(sa, html, thread);
 		g_string_append(html, ":  ");
 
 		// If this message is part of a thread, and isn't the parent

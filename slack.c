@@ -558,6 +558,12 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 		purple_account_option_string_new("Prepend parent messages with this string", "parent_indicator", "◈ "));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_string_new("Thread timestamp format for the current day (time only)", "thread_timestamp", "%X"));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_string_new("Thread timestamp format for previous days (date and time)", "thread_datestamp", "%x-%X"));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Display parent indicator when thread is opened", "display_parent_indicator", TRUE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,

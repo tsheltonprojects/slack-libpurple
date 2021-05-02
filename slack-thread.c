@@ -49,23 +49,28 @@ static GString *slack_get_thread_color(const char *ts) {
 	return tmp;
 }
 
-void slack_append_formatted_thread_timestamp(GString *str, const char *ts) {
+void slack_append_formatted_thread_timestamp(SlackAccount *sa, GString *str, const char *ts) {
 	time_t tt = slack_parse_time_str(ts);
 	time_t now = time(NULL);
 	struct tm now_time, thread_time;
 	localtime_r(&tt, &thread_time);
 	localtime_r(&now, &now_time);
-	const char *time_fmt;
 
 	GString *color = slack_get_thread_color(ts);
 
-	if (thread_time.tm_yday != now_time.tm_yday || thread_time.tm_year != now_time.tm_year)
-		time_fmt = "%x-%X";
+	const char *time_fmt;
+	if (thread_time.tm_yday == now_time.tm_yday && thread_time.tm_year == now_time.tm_year)
+		time_fmt = purple_account_get_string(sa->account, "thread_timestamp", "%X");
 	else
-		time_fmt = "%X";
+		time_fmt = purple_account_get_string(sa->account, "thread_datestamp", "%x-%X");
 
 	char time_str[100];
 	strftime(time_str, sizeof(time_str), time_fmt, &thread_time);
+	/* unfortunately these formats can have spaces in some locales, which
+	 * won't work for argument parsing, so make them underscores */
+	char *tss = time_str;
+	while ((tss = strchr(tss, ' ')))
+		*tss = '_';
 
 	g_string_append(str, "<font color=\"#");
 	g_string_append(str, color->str);
@@ -91,22 +96,38 @@ static gboolean slack_is_slack_ts(const char *str) {
 	return TRUE;
 }
 
-static time_t slack_get_ts_from_time_str(const char *time_str) {
+static time_t slack_get_ts_from_time_str(SlackAccount *sa, const char *time_str) {
 #ifndef _WIN32
 	time_t ts = time(NULL);
+	time_t tr = 0;
 
-	static const char *formats[] = {"%x-%X", "%X", NULL};
+	char *time_strs = NULL;
+	if (strchr(time_str, '_')) {
+		/* undo the underscore replacement above (try both) */
+		time_strs = g_strdup(time_str);
+		char *tss = time_strs;
+		while ((tss = strchr(tss, '_')))
+			*tss = ' ';
+	}
+	const char *formats[] = {
+		purple_account_get_string(sa->account, "thread_datestamp", "%x-%X"),
+		purple_account_get_string(sa->account, "thread_timestamp", "%X"),
+		NULL};
 	const char **fmt;
 	for (fmt = formats; *fmt; fmt++) {
 		struct tm tm;
 		localtime_r(&ts, &tm);
 		char *result = strptime(time_str, *fmt, &tm);
-		if (result && !*result)
-			return mktime(&tm);
+		if ((!result || *result) && time_strs)
+			result = strptime(time_strs, *fmt, &tm);
+		if (result && !*result) {
+			tr = mktime(&tm);
+			break;
+		}
 	}
 #endif
-
-	return 0;
+	g_free(time_strs);
+	return tr;
 }
 
 typedef void slack_thread_lookup_ts_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts);
@@ -165,7 +186,7 @@ static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *
 	if (slack_is_slack_ts(timestr))
 		return cb(sa, conv, data, timestr);
 
-	time_t ts = slack_get_ts_from_time_str(timestr);
+	time_t ts = slack_get_ts_from_time_str(sa, timestr);
 	if (ts == 0) {
 		slack_write_message(sa, conv, "Could not parse thread timestamp.", PURPLE_MESSAGE_SYSTEM);
 		return cb(sa, conv, data, NULL);
