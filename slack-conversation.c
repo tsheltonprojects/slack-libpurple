@@ -296,7 +296,7 @@ void slack_get_history(SlackAccount *sa, SlackObject *conv, const char *since, u
 	h->thread = (thread_ts != NULL);
 	h->force_threads = force_threads;
 
-	if (!thread_ts && purple_account_get_bool(sa->account, "thread_history", FALSE)) {
+	if (!thread_ts && since && purple_account_get_bool(sa->account, "thread_history", FALSE)) {
 		/*
 		  To get thread replies we have to get around some serious deficiences
 		  in the public API: There no way to query replies by date. And we have
