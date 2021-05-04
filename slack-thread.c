@@ -8,6 +8,7 @@
 #include <debug.h>
 #include <time.h>
 #include <errno.h>
+#include <ctype.h>
 
 /**
  * Returns a deterministic color for a thread.
@@ -62,26 +63,24 @@ static void slack_format_thread_time(SlackAccount *sa, char s[128], const char *
 	if (thread_time.tm_yday == now_time.tm_yday && thread_time.tm_year == now_time.tm_year)
 		time_fmt = purple_account_get_string(sa->account, "thread_timestamp", "%X");
 	else
-		time_fmt = purple_account_get_string(sa->account, "thread_datestamp", "%x-%X");
+		time_fmt = purple_account_get_string(sa->account, "thread_datestamp", "%x %X");
 
 	size_t r = strftime(s, 128, time_fmt, &thread_time);
 	if (!r) {
 		/* fall back */
 		r = snprintf(s, 128, "%ld", tt);
 	}
-	/* unfortunately these formats can have spaces in some locales, which
-	 * won't work for argument parsing, so make them underscores */
-	char *tss = s;
-	while ((tss = strchr(tss, ' ')))
-		*tss = '_';
 
 	if (exact)
 		strncpy(&s[r], te, 127-r);
 }
 
-static void slack_parse_thread_time(SlackAccount *sa, const char *s, char start[20], char end[20]) {
+static void slack_parse_thread_time(SlackAccount *sa, const char *s, char start[20], char end[20], const char **rest) {
 	time_t t = 0;
 	char *e = NULL;
+
+	if (rest)
+		*rest = NULL;
 
 	/* first try posix seconds */
 	if (s[0] >= '0' && s[0] <= '9') {
@@ -92,15 +91,8 @@ static void slack_parse_thread_time(SlackAccount *sa, const char *s, char start[
 
 #ifndef _WIN32
 	char *su = NULL;
-	if (strchr(s, '_')) {
-		/* undo the underscore replacement in slack_format_thread_time (try both) */
-		su = g_strdup(s);
-		char *tss = su;
-		while ((tss = strchr(tss, '_')))
-			*tss = ' ';
-	}
 	const char *formats[] = {
-		purple_account_get_string(sa->account, "thread_datestamp", "%x-%X"),
+		purple_account_get_string(sa->account, "thread_datestamp", "%x %X"),
 		purple_account_get_string(sa->account, "thread_timestamp", "%X"),
 		NULL };
 	const char **fmt;
@@ -129,11 +121,23 @@ sub:
 			i ++;
 		if (!e[i] && i == 6)
 			snprintf(start, 19, "%lu.%s", t, e);
+		if (rest)
+			*rest = e + i;
 		return;
 	}
-	if (!*e) {
-		snprintf(start, 19, "%lu.000000", t);
-		snprintf(end, 19, "%lu.999999", t);
+
+	if (*e && !isspace(*e))
+		// Don't accept other strings right next to the timestamp
+		// (require at least one space).
+		return;
+
+	snprintf(start, 19, "%lu.000000", t);
+	snprintf(end, 19, "%lu.999999", t);
+
+	if (rest) {
+		*rest = e;
+		while (isspace(**rest))
+			(*rest)++;
 	}
 }
 
@@ -198,10 +202,7 @@ static gboolean slack_thread_lookup_ts_history_cb(SlackAccount *sa, gpointer dat
 	return FALSE;
 }
 
-static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *cb, SlackObject *conv, gpointer data, const char *timestr) {
-	char start[20] = "";
-	char end[20] = "";
-	slack_parse_thread_time(sa, timestr, start, end);
+static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *cb, SlackObject *conv, gpointer data, const char *start, const char *end) {
 	if (!*start) {
 		slack_write_message(sa, conv, "Could not parse thread timestamp.", PURPLE_MESSAGE_SYSTEM);
 		return cb(sa, conv, data, NULL);
@@ -228,8 +229,18 @@ static void slack_thread_post_lookup_cb(SlackAccount *sa, SlackObject *conv, gpo
 	g_free(msg);
 }
 
-void slack_thread_post_to_timestamp(SlackAccount *sa, SlackObject *obj, const char *timestr, const char *msg) {
-	slack_thread_lookup_ts(sa, slack_thread_post_lookup_cb, obj, g_strdup(msg), timestr);
+void slack_thread_post_to_timestamp(SlackAccount *sa, SlackObject *obj, const char *timestr_and_msg) {
+	char start[20] = "";
+	char end[20] = "";
+	const char *rest;
+	slack_parse_thread_time(sa, timestr_and_msg, start, end, &rest);
+
+	if (!rest || !*rest) {
+		slack_write_message(sa, obj, "Please supply a message.", PURPLE_MESSAGE_SYSTEM);
+		return;
+	}
+
+	slack_thread_lookup_ts(sa, slack_thread_post_lookup_cb, obj, g_strdup(rest), start, end);
 }
 
 static void slack_thread_get_replies_lookup_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts) {
@@ -238,5 +249,15 @@ static void slack_thread_get_replies_lookup_cb(SlackAccount *sa, SlackObject *co
 }
 
 void slack_thread_get_replies(SlackAccount *sa, SlackObject *obj, const char *timestr) {
-	slack_thread_lookup_ts(sa, slack_thread_get_replies_lookup_cb, obj, NULL, timestr);
+	char start[20] = "";
+	char end[20] = "";
+	const char *rest;
+	slack_parse_thread_time(sa, timestr, start, end, &rest);
+
+	if (rest && *rest) {
+		slack_write_message(sa, obj, "Too many arguments.", PURPLE_MESSAGE_SYSTEM);
+		return;
+	}
+
+	slack_thread_lookup_ts(sa, slack_thread_get_replies_lookup_cb, obj, NULL, start, end);
 }

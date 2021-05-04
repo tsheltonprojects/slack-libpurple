@@ -123,7 +123,7 @@ static PurpleCmdRet cmd_thread(PurpleConversation *conv, const gchar *cmd, gchar
 		return PURPLE_CMD_RET_FAILED;
 	}
 
-	slack_thread_post_to_timestamp(sa, obj, args[0], args[1]);
+	slack_thread_post_to_timestamp(sa, obj, args[0]);
 
 	return PURPLE_CMD_RET_OK;
 }
@@ -172,14 +172,14 @@ void slack_cmd_register() {
 
 	static const char *thread_cmds[] = {"thread", "th", NULL};
 	for (cmdp = thread_cmds; *cmdp; cmdp++) {
-		id = purple_cmd_register(*cmdp, "ws", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+		id = purple_cmd_register(*cmdp, "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
 			SLACK_PLUGIN_ID, cmd_thread, "thread|th [thread-timestamp] [message]:  Post messages in threads.", NULL);
 		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 	}
 
 	static const char *getthread_cmds[] = {"getthread", "gth", NULL};
 	for (cmdp = getthread_cmds; *cmdp; cmdp++) {
-		id = purple_cmd_register(*cmdp, "w", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+		id = purple_cmd_register(*cmdp, "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
 			SLACK_PLUGIN_ID, cmd_getthread, "getthread|gth [thread-timestamp]: Fetch given thread", NULL);
 		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 	}
