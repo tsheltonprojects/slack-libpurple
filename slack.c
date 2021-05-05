@@ -564,7 +564,7 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 		purple_account_option_string_new("Thread timestamp format for the current day (time only)", "thread_timestamp", "%X"));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
-		purple_account_option_string_new("Thread timestamp format for previous days (date and time)", "thread_datestamp", "%x-%X"));
+		purple_account_option_string_new("Thread timestamp format for previous days (date and time)", "thread_datestamp", "%x %X"));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Retrieve unread IM (*and channel) history on connect", "connect_history", FALSE));

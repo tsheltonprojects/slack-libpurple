@@ -75,7 +75,7 @@ static void slack_format_thread_time(SlackAccount *sa, char s[128], const char *
 		strncpy(&s[r], te, 127-r);
 }
 
-static void slack_parse_thread_time(SlackAccount *sa, const char *s, char start[20], char end[20], const char **rest) {
+static gboolean slack_parse_thread_time(SlackAccount *sa, const char *s, char start[20], char end[20], const char **rest) {
 	time_t t = 0;
 	char *e = NULL;
 
@@ -113,32 +113,35 @@ static void slack_parse_thread_time(SlackAccount *sa, const char *s, char start[
 
 sub:
 	if (!e)
-		return;
+		return FALSE;
 	if (*e == '.') {
 		e++;
 		int i = 0;
 		while (e[i] >= '0' && e[i] <= '9')
 			i ++;
-		if (!e[i] && i == 6)
+		if (i == 6) {
 			snprintf(start, 19, "%lu.%s", t, e);
-		if (rest)
-			*rest = e + i;
-		return;
+			*end = 0;
+			e += i;
+		}
+	}
+	else
+	{
+		snprintf(start, 19, "%lu.000000", t);
+		snprintf(end, 19, "%lu.999999", t);
 	}
 
 	if (*e && !isspace(*e))
 		// Don't accept other strings right next to the timestamp
 		// (require at least one space).
-		return;
-
-	snprintf(start, 19, "%lu.000000", t);
-	snprintf(end, 19, "%lu.999999", t);
+		return FALSE;
 
 	if (rest) {
+		while (isspace(*e))
+			e++;
 		*rest = e;
-		while (isspace(**rest))
-			(*rest)++;
 	}
+	return TRUE;
 }
 
 void slack_append_formatted_thread_timestamp(SlackAccount *sa, GString *str, const char *ts, gboolean exact) {
@@ -155,12 +158,13 @@ void slack_append_formatted_thread_timestamp(SlackAccount *sa, GString *str, con
 	g_string_append(str, "</font>");
 }
 
-typedef void slack_thread_lookup_ts_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts);
+typedef void slack_thread_lookup_ts_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts, const char *rest);
 
 struct thread_lookup_ts {
 	SlackObject *conv;
 	slack_thread_lookup_ts_cb *cb;
 	void *data;
+	char *rest;
 };
 
 static gboolean slack_thread_lookup_ts_history_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
@@ -196,68 +200,61 @@ static gboolean slack_thread_lookup_ts_history_cb(SlackAccount *sa, gpointer dat
 		ts = json_get_prop_strptr(entry, "ts");
 	}
 
-	lookup->cb(sa, lookup->conv, lookup->data, ts);
+	lookup->cb(sa, lookup->conv, lookup->data, ts, lookup->rest);
 	g_object_unref(lookup->conv);
+	g_free(lookup->rest);
 	g_free(lookup);
 	return FALSE;
 }
 
-static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *cb, SlackObject *conv, gpointer data, const char *start, const char *end) {
-	if (!*start) {
+static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *cb, SlackObject *conv, gpointer data, const char *timestr) {
+	char start[20] = "";
+	char end[20] = "";
+	const char *rest;
+	if (!slack_parse_thread_time(sa, timestr, start, end, &rest)) {
 		slack_write_message(sa, conv, "Could not parse thread timestamp.", PURPLE_MESSAGE_SYSTEM);
-		return cb(sa, conv, data, NULL);
+		return cb(sa, conv, data, NULL, rest);
 	}
 	if (!*end)
-		return cb(sa, conv, data, start);
+		return cb(sa, conv, data, start, rest);
 
 	struct thread_lookup_ts *lookup = g_new(struct thread_lookup_ts, 1);
 	lookup->conv = g_object_ref(conv);
 	lookup->cb = cb;
 	lookup->data = data;
+	lookup->rest = g_strdup(rest);
 
 	const char *id = slack_conversation_id(conv);
 	slack_api_get(sa, slack_thread_lookup_ts_history_cb, lookup, "conversations.history", "channel", id, "oldest", start, "latest", end, "inclusive", "1", NULL);
 }
 
-static void slack_thread_post_lookup_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts) {
-	char *msg = data;
+static void slack_thread_post_lookup_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts, const char *msg) {
+	if (!msg || !*msg) {
+		slack_write_message(sa, conv, "Please supply a message.", PURPLE_MESSAGE_SYSTEM);
+		return;
+	}
+
 	if (thread_ts) {
 		int r = slack_conversation_send(sa, conv, msg, 0, thread_ts);
 		if (r < 0)
 			purple_debug_error("slack", "Not able to send message \"%s\": %s\n", msg, strerror(-r));
 	}
-	g_free(msg);
 }
 
 void slack_thread_post_to_timestamp(SlackAccount *sa, SlackObject *obj, const char *timestr_and_msg) {
-	char start[20] = "";
-	char end[20] = "";
-	const char *rest;
-	slack_parse_thread_time(sa, timestr_and_msg, start, end, &rest);
+	slack_thread_lookup_ts(sa, slack_thread_post_lookup_cb, obj, NULL, timestr_and_msg);
+}
 
-	if (!rest || !*rest) {
-		slack_write_message(sa, obj, "Please supply a message.", PURPLE_MESSAGE_SYSTEM);
+static void slack_thread_get_replies_lookup_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts, const char *rest) {
+	if (rest && *rest) {
+		slack_write_message(sa, conv, "Too many arguments.", PURPLE_MESSAGE_SYSTEM);
 		return;
 	}
 
-	slack_thread_lookup_ts(sa, slack_thread_post_lookup_cb, obj, g_strdup(rest), start, end);
-}
-
-static void slack_thread_get_replies_lookup_cb(SlackAccount *sa, SlackObject *conv, gpointer data, const char *thread_ts) {
 	if (thread_ts)
 		slack_get_history(sa, conv, NULL, SLACK_HISTORY_LIMIT_COUNT, thread_ts, TRUE);
 }
 
 void slack_thread_get_replies(SlackAccount *sa, SlackObject *obj, const char *timestr) {
-	char start[20] = "";
-	char end[20] = "";
-	const char *rest;
-	slack_parse_thread_time(sa, timestr, start, end, &rest);
-
-	if (rest && *rest) {
-		slack_write_message(sa, obj, "Too many arguments.", PURPLE_MESSAGE_SYSTEM);
-		return;
-	}
-
-	slack_thread_lookup_ts(sa, slack_thread_get_replies_lookup_cb, obj, NULL, start, end);
+	slack_thread_lookup_ts(sa, slack_thread_get_replies_lookup_cb, obj, NULL, timestr);
 }
