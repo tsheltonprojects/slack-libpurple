@@ -38,8 +38,8 @@ static gboolean conversations_list_cb(SlackAccount *sa, gpointer data, json_valu
 }
 
 void slack_conversations_load(SlackAccount *sa) {
-	g_hash_table_remove_all(sa->channels);
-	g_hash_table_remove_all(sa->ims);
+	// g_hash_table_remove_all(sa->channels);
+	// g_hash_table_remove_all(sa->ims);
 	CONVERSATIONS_LIST_CALL(sa);
 }
 

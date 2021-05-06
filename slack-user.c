@@ -127,7 +127,7 @@ static gboolean users_list_cb(SlackAccount *sa, gpointer data, json_value *json,
 }
 
 void slack_users_load(SlackAccount *sa) {
-	g_hash_table_remove_all(sa->users);
+	// g_hash_table_remove_all(sa->users); /* this isn't really necessary, and we'd prefer to preserve self */
 	slack_api_get(sa, users_list_cb, NULL, "users.list", "presence", "false", SLACK_PAGINATE_LIMIT_ARG, NULL);
 }
 
