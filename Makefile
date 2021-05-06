@@ -62,13 +62,19 @@ CFLAGS = \
     -Wall \
     -Wno-error=strict-aliasing \
     -Wno-deprecated-declarations \
-    -Wno-error=format-truncation \
     -fPIC \
     -D_DEFAULT_SOURCE=1 \
     -D_XOPEN_SOURCE=1 \
     -std=c99 \
     $(shell pkg-config --cflags $(PKGS)) \
     $(LOCAL_CFLAGS)
+
+# format-truncation is introduced in gcc 7.1
+GCCVERSION := $(shell gcc --version | grep ^gcc | sed -e 's/^.* //g')
+
+ifeq ($(shell expr $(GCCVERSION) \>= 7.1), 1)
+ CFLAGS += -Wno-error=format-truncation
+endif
 
 LIBS = $(shell pkg-config --libs $(PKGS))
 
