@@ -69,13 +69,6 @@ CFLAGS = \
     $(shell pkg-config --cflags $(PKGS)) \
     $(LOCAL_CFLAGS)
 
-# format-truncation is introduced in gcc 7.1
-GCCVERSION := $(shell gcc --version | grep ^gcc | sed -e 's/^.* //g')
-
-ifeq ($(shell expr $(GCCVERSION) \>= 7.1), 1)
- CFLAGS += -Wno-error=format-truncation
-endif
-
 LIBS = $(shell pkg-config --libs $(PKGS))
 
 endif
