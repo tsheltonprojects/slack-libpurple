@@ -41,10 +41,10 @@ Here's how slack concepts are mapped to purple:
    * For bitlbee IRC connections, Slack channels are "chat channels" that can be added to your configuration with "`chat add <account id> #<channel>`"
 
 ### Available Commands
-- `/edit <new message>` will edit the last message you sent in a channel/chat to whatever you write.
-- `/delete` will delete the last message you sent in a channel/chat.
-- `/th <timestamp=HH:mm:ss> <message>` will reply to message with supplied timestamp in a thread.
-  Timestamp must be in 24-hour format.
+- `/edit [new message]`: edit your last message to be `new message`
+- `/delete`: remove your last message
+- `/thread|th [thread-timestamp] [message]`: post `message` in a thread, where `thread-timestamp` matches the configured display format
+- `/getthread|gth [thread-timestamp]`: fetch messages in a thread, where `thread-timestamp` matches the configured display format
 
 ## Known issues
 - Handling of messages while not connected or not open is not great.

@@ -173,14 +173,14 @@ void slack_cmd_register() {
 	static const char *thread_cmds[] = {"thread", "th", NULL};
 	for (cmdp = thread_cmds; *cmdp; cmdp++) {
 		id = purple_cmd_register(*cmdp, "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
-			SLACK_PLUGIN_ID, cmd_thread, "thread|th [thread-timestamp] [message]:  Post messages in threads.", NULL);
+			SLACK_PLUGIN_ID, cmd_thread, "thread|th [thread-timestamp] [message]: post message in a thread, where thread-timestamp matches the configured display format", NULL);
 		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 	}
 
 	static const char *getthread_cmds[] = {"getthread", "gth", NULL};
 	for (cmdp = getthread_cmds; *cmdp; cmdp++) {
 		id = purple_cmd_register(*cmdp, "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
-			SLACK_PLUGIN_ID, cmd_getthread, "getthread|gth [thread-timestamp]: Fetch given thread", NULL);
+			SLACK_PLUGIN_ID, cmd_getthread, "getthread|gth [thread-timestamp]: fetch messages in a thread, where thread-timestamp matches the configured display format", NULL);
 		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 	}
 }
