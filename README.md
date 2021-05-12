@@ -40,7 +40,10 @@ Here's how slack concepts are mapped to purple:
    * Which conversations are open in purple is up to you, and has no effect on slack;
    * For bitlbee IRC connections, Slack channels are "chat channels" that can be added to your configuration with "`chat add <account id> #<channel>`"
 
+### Configuration options
+
 ### Available Commands
+- `/history [count]`: fetch `count` (or unread, if not specified) previous messages
 - `/edit [new message]`: edit your last message to be `new message`
 - `/delete`: remove your last message
 - `/thread|th [thread-timestamp] [message]`: post `message` in a thread, where `thread-timestamp` matches the configured display format

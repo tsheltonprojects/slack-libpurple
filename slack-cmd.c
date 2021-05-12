@@ -83,6 +83,21 @@ static PurpleCmdRet send_cmd(PurpleConversation *conv, const gchar *cmd, gchar *
 	return PURPLE_CMD_RET_OK;
 }
 
+static PurpleCmdRet cmd_history(PurpleConversation *conv, const gchar *cmd, gchar **args, gchar **error, void *data) {
+	SlackAccount *sa = get_slack_account(conv->account);
+	if (!sa)
+		return PURPLE_CMD_RET_FAILED;
+
+	/* TODO: handle timestamp */
+	SlackObject *obj = slack_conversation_get_conversation(sa, conv);
+	if (args && args[0])
+		slack_get_history(sa, obj, NULL, g_ascii_strtoull(args[0], NULL, 0), NULL, FALSE);
+	else
+		slack_get_conversation_unread(sa, obj);
+
+	return PURPLE_CMD_RET_OK;
+}
+
 static PurpleCmdRet cmd_edit(PurpleConversation *conv, const gchar *cmd, gchar **args, gchar **error, void *data) {
 	SlackAccount *sa = get_slack_account(conv->account);
 	if (!sa)
@@ -161,6 +176,14 @@ void slack_cmd_register() {
 		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 		cmdp++;
 	}
+
+	id = purple_cmd_register("history", "w", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+			SLACK_PLUGIN_ID, cmd_history, "history [count]: fetch count previous messages", NULL);
+	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
+
+	id = purple_cmd_register("history", "", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
+			SLACK_PLUGIN_ID, cmd_history, "history: fetch unread previous messages", NULL);
+	commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
 
 	id = purple_cmd_register("edit", "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
 			SLACK_PLUGIN_ID, cmd_edit, "edit [new message]: edit your last message to be new message", NULL);
