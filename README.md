@@ -41,13 +41,29 @@ Here's how slack concepts are mapped to purple:
    * For bitlbee IRC connections, Slack channels are "chat channels" that can be added to your configuration with "`chat add <account id> #<channel>`"
 
 ### Configuration options
+- `api_token`: API token far legacy authentication
+- `open_chat` [FALSE]: Open chat on channel message; open a chat window whenever there is activity in a channel
+- `display_threads` [TRUE]: Display thread replies; display messages in a thread when they're posted
+- `display_parent_indicator` [TRUE]: Re-display parent with indicator when thread is opened; the original messages will be displayed again when a thread is first created, follewd by  the threaded message
+- `thread_indicator` [`⤷ `]: Prepend thread replies with this string
+- `parent_indicator` [`◈ `]: Prepend parent messages with this string
+- `thread_timestamp` [`%X`]: Thread timestamp format for the current day (time only), when the message is displayed the same day as it was posted
+- `thread_datestamp` [`%x %X`]: Thread timestamp format for previous days (date and time), when the message is displayed on a different day than it was posted
+- `connect_history` [FALSE]: Retrieve unread IM (and channel, if `open_history`) history on connect; opening any IMs that have new messages since they were last read, and also opening any channels with new activity if `open_history` is set
+- `open_history` [FALSE]: Retrieve unread history on conversation open (and connect, if `connect_history`), displaying any messages since they were last read when you open a conversation
+- `thread_history` [FALSE]: Retrieve unread thread history too (slow!); requires downloading the previous 1000 messages to check if any of them have new thread messages (we have yet to find a better way to check this through the slack API)
+- `enable_avatar_download` [FALSE]: Download user avatars on connect
+- `channel_members` [TRUE]: Show members in channels (disabling may break channel features)
+- `attachment_prefix` [`▎ `]: Prepend attachment lines with this string
+- `lazy_load` [FALSE]: Lazy loading: only request objects on demand (EXPERIMENTAL!); normally all users and conversations are loaded on connect, but with this option set, they are only loaded when they are seen. This requires an undocumented API call that shows only "active" conversations, like the slack web interface
+- `ratelimit_delay` [15]: Seconds to delay when ratelimited; the slack API limits how many requests you can make how quickly. Normally it tells you how long you need to wait before making another call, but due to a parsing limitation in libpurple that we have not bothered to work around, we don't get this value, so have a hard-coded delay. Should only need to be changed in extreme circumstances, though it can also lead to longer delays than necessary.
 
 ### Available Commands
 - `/history [count]`: fetch `count` (or unread, if not specified) previous messages
 - `/edit [new message]`: edit your last message to be `new message`
 - `/delete`: remove your last message
-- `/thread|th [thread-timestamp] [message]`: post `message` in a thread, where `thread-timestamp` matches the configured display format
-- `/getthread|gth [thread-timestamp]`: fetch messages in a thread, where `thread-timestamp` matches the configured display format
+- `/thread|th [thread-timestamp] [message]`: post `message` in a thread, where `thread-timestamp` matches the configured display format (either `thread_timestamp` or `thread_datestamp`)
+- `/getthread|gth [thread-timestamp]`: fetch messages in a thread, where `thread-timestamp` matches the configured display format (either `thread_timestamp` or `thread_datestamp`)
 
 ## Known issues
 - Handling of messages while not connected or not open is not great.
