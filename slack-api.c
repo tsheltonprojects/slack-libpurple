@@ -46,7 +46,7 @@ static void api_run(SlackAccount *sa);
 static void api_cb(PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *buf, gsize len, const gchar *error) {
 	SlackAccount *sa = data;
 	SlackAPICall *call = g_queue_pop_head(&sa->api_calls);
-	g_return_if_fail(call->fetch == fetch);
+	g_return_if_fail(call->fetch == fetch || (call->fetch == NULL && error));
 	call->fetch = NULL;
 
 	purple_debug_misc("slack", "api response: %s\n", error ?: buf);
@@ -90,9 +90,12 @@ static void api_cb(PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *bu
 static gboolean api_retry(SlackAPICall *call) {
 	call->timeout = 0;
 	purple_debug_misc("slack", "api call: %s\n%s\n", call->url, call->request ?: "");
-	call->fetch = purple_util_fetch_url_request_len_with_account(call->sa->account,
+	PurpleUtilFetchUrlData *fetch =
+		purple_util_fetch_url_request_len_with_account(call->sa->account,
 			call->url, FALSE, NULL, TRUE, call->request, FALSE, 4096*1024,
 			api_cb, call->sa);
+	if (fetch)
+		call->fetch = fetch;
 	return FALSE;
 }
 
