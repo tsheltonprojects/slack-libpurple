@@ -46,7 +46,7 @@ static void api_run(SlackAccount *sa);
 static void api_cb(PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *buf, gsize len, const gchar *error) {
 	SlackAccount *sa = data;
 	SlackAPICall *call = g_queue_pop_head(&sa->api_calls);
-	g_return_if_fail(call->fetch == fetch || (call->fetch == NULL && error));
+	g_return_if_fail(call && (call->fetch == fetch || (call->fetch == NULL && error)));
 	call->fetch = NULL;
 
 	purple_debug_misc("slack", "api response: %s\n", error ?: buf);
@@ -68,6 +68,7 @@ static void api_cb(PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *bu
 		if (!g_strcmp0(err, "ratelimited")) {
 			/* #27: correct thing to do on 429 status is parse the "Retry-After" header and wait that many seconds,
 			 * but getting access to the headers here requires more work, so we just heuristically make up a number... */
+			g_queue_push_head(&sa->api_calls, call);
 			call->timeout = purple_timeout_add_seconds(purple_account_get_int(sa->account, "ratelimit_delay", 15), (GSourceFunc)api_retry, call);
 			json_value_free(json);
 			return;
@@ -88,6 +89,7 @@ static void api_cb(PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *bu
 }
 
 static gboolean api_retry(SlackAPICall *call) {
+	g_return_val_if_fail(call == g_queue_peek_head(&call->sa->api_calls), FALSE);
 	call->timeout = 0;
 	purple_debug_misc("slack", "api call: %s\n%s\n", call->url, call->request ?: "");
 	PurpleUtilFetchUrlData *fetch =
