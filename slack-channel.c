@@ -269,7 +269,7 @@ void slack_join_chat(PurpleConnection *gc, GHashTable *info) {
 	if (chan && chan->type >= SLACK_CHANNEL_MEMBER)
 		channels_join_cb(sa, join, NULL, NULL);
 	else
-		slack_api_post(sa, channels_join_cb, join, "converstations.join", "name", name, NULL);
+		slack_api_post(sa, channels_join_cb, join, "conversations.join", "channel", chan->object.id, NULL);
 }
 
 void slack_chat_leave(PurpleConnection *gc, int cid) {

@@ -184,7 +184,7 @@ int slack_im_send(SlackAccount *sa, SlackUser *user, const char *msg, PurpleMess
 	send->thread = g_strdup(thread);
 
 	if (!*user->im)
-		slack_api_post(sa, send_im_open_cb, send, "converstations.open", "user", user->object.id, "return_im", "true", NULL);
+		slack_api_post(sa, send_im_open_cb, send, "conversations.open", "users", user->object.id, "return_im", "true", NULL);
 	else
 		send_im_open_cb(sa, send, NULL, NULL);
 
