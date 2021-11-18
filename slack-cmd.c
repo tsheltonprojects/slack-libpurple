@@ -174,7 +174,6 @@ void slack_cmd_register() {
 		id = purple_cmd_register(cmdbuf, "s", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_PRPL_ONLY | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS,
 				SLACK_PLUGIN_ID, send_cmd, cmd, NULL);
 		commands = g_slist_prepend(commands, GUINT_TO_POINTER(id));
-		cmdp++;
 	}
 
 	id = purple_cmd_register("history", "w", PURPLE_CMD_P_PRPL, PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_PRPL_ONLY,
