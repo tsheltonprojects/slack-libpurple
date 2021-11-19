@@ -94,7 +94,7 @@ static gboolean api_retry(SlackAPICall *call) {
 	purple_debug_misc("slack", "api call: %s\n%s\n", call->url, call->request ?: "");
 	PurpleUtilFetchUrlData *fetch =
 		purple_util_fetch_url_request_len_with_account(call->sa->account,
-			call->url, FALSE, NULL, TRUE, call->request, FALSE, 4096*1024,
+			call->url, TRUE, NULL, TRUE, call->request, FALSE, 4096*1024,
 			api_cb, call->sa);
 	if (fetch)
 		call->fetch = fetch;
