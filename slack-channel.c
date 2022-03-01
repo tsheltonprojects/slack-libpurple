@@ -259,14 +259,18 @@ void slack_join_chat(PurpleConnection *gc, GHashTable *info) {
 	if (*name == '#')
 		name++;
 	SlackChannel *chan = g_hash_table_lookup(sa->channel_names, name);
-	if (chan)
-		g_object_ref(chan);
+	if (!chan)
+	{
+		/* TODO: should do a better lookup now that conversations.join doesn't take name */
+		purple_notify_error(gc, "Join chat", "Channel not found", name);
+		return;
+	}
+
 	struct join_channel *join = g_new0(struct join_channel, 1);
-	if (chan)
-		join->chan = g_object_ref(chan);
+	join->chan = g_object_ref(chan);
 	join->name = g_strdup(name);
 
-	if (chan && chan->type >= SLACK_CHANNEL_MEMBER)
+	if (chan->type >= SLACK_CHANNEL_MEMBER)
 		channels_join_cb(sa, join, NULL, NULL);
 	else
 		slack_api_post(sa, channels_join_cb, join, "conversations.join", "channel", chan->object.id, NULL);
