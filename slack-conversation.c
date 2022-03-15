@@ -244,7 +244,7 @@ static gboolean get_history_cb(SlackAccount *sa, gpointer data, json_value *json
 			const char *ts = json_get_prop_strptr(msg, "ts");
 			const char *thread_ts = json_get_prop_strptr(msg, "thread_ts");
 			if (thread_ts && !slack_ts_cmp(ts, thread_ts)) {
-				if (h->thread)
+				if (h->thread && !h->force_threads)
 					// When we are fetching threads, don't display
 					// the parent message, because it has already
 					// been displayed when fetching the non-thread
