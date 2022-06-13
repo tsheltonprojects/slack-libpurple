@@ -277,8 +277,13 @@ static void slack_attachment_to_html(GString *html, SlackAccount *sa, json_value
 	if (title) {
 		g_string_append(html, brtag->str);
 		g_string_append(html, "<b><i>");
-		link_html(html, title_link, title);
+		if (title_link) {
+			link_html(html, title_link, title);
+		} else {
+			slack_message_to_html(html, sa, title, NULL, attachment_prefix->str);
+		}
 		g_string_append(html, "</i></b>");
+
 	}
 
 	// main text
