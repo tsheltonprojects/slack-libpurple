@@ -41,7 +41,7 @@ Here's how slack concepts are mapped to purple:
    * For bitlbee IRC connections, Slack channels are "chat channels" that can be added to your configuration with "`chat add <account id> #<channel>`"
 
 ### Configuration options
-- `api_token`: API token far legacy authentication
+- `api_token`: API token for legacy authentication
 - `open_chat` [FALSE]: Open chat on channel message; open a chat window whenever there is activity in a channel
 - `display_threads` [TRUE]: Display thread replies; display messages in a thread when they're posted
 - `display_parent_indicator` [TRUE]: Re-display parent with indicator when thread is opened; the original messages will be displayed again when a thread is first created, follewd by  the threaded message
