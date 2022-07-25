@@ -47,6 +47,18 @@ static void slack_get_thread_color(char s[8], const char *ts) {
 	snprintf(s, 7, "%06x", color);
 }
 
+#ifdef _WIN32
+static struct tm *localtime_r(time_t *_clock, struct tm *_result)
+{
+	struct tm *p = localtime(_clock);
+
+	if (p)
+		*(_result) = *p;
+
+	return p;
+}
+#endif
+
 static void slack_format_thread_time(SlackAccount *sa, char s[128], const char *ts, gboolean exact) {
 	char *te;
 	time_t tt = strtoul(ts, &te, 10); // slack_parse_time_str(ts)
