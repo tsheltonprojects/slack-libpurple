@@ -3,6 +3,14 @@
 
 #include "slack.h"
 
+struct _SlackCachedThreadTs {
+	char *timestr;
+	char *thread_ts;
+};
+
+#define SLACK_TYPE_CACHED_THREAD_TS slack_cached_thread_ts_get_type()
+G_DECLARE_FINAL_TYPE(SlackCachedThreadTs, slack_cached_thread_ts, SLACK, CACHED_THREAD_RS, SlackObject)
+
 /**
  * Appends a formatted ts timestamp to str.
  *

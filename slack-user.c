@@ -15,6 +15,8 @@ static void slack_user_finalize(GObject *gobj) {
 	g_free(user->status);
 	g_free(user->avatar_hash);
 	g_free(user->avatar_url);
+	g_free(user->cached_thread_ts.timestr);
+	g_free(user->cached_thread_ts.thread_ts);
 
 	G_OBJECT_CLASS(slack_user_parent_class)->finalize(gobj);
 }

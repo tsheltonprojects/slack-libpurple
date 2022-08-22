@@ -14,7 +14,9 @@
 G_DEFINE_TYPE(SlackChannel, slack_channel, SLACK_TYPE_OBJECT);
 
 static void slack_channel_finalize(GObject *gobj) {
-	// SlackChannel *chan = SLACK_CHANNEL(gobj);
+	SlackChannel *chan = SLACK_CHANNEL(gobj);
+	g_free(chan->cached_thread_ts.timestr);
+	g_free(chan->cached_thread_ts.thread_ts);
 
 	G_OBJECT_CLASS(slack_channel_parent_class)->finalize(gobj);
 }
