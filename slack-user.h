@@ -4,13 +4,10 @@
 #include "json.h"
 #include "slack-object.h"
 #include "slack.h"
-#include "slack-thread.h"
 
 /* SlackUser represents both a user object, and an optional im object */
 struct _SlackUser {
 	SlackObject object;
-
-	SlackCachedThreadTs cached_thread_ts;
 
 	char *status;
 	char *avatar_hash;

@@ -213,18 +213,12 @@ static gboolean slack_thread_lookup_ts_history_cb(SlackAccount *sa, gpointer dat
 		ts = json_get_prop_strptr(entry, "ts");
 	}
 
-	SlackCachedThreadTs *cached_ts = NULL;
-	if (SLACK_IS_CHANNEL(lookup->conv))
-		cached_ts = &((SlackChannel*)lookup->conv)->cached_thread_ts;
-	else if (SLACK_IS_USER(lookup->conv))
-		cached_ts = &((SlackUser*)lookup->conv)->cached_thread_ts;
-
-	if (cached_ts && ts != NULL) {
-		g_free(cached_ts->timestr);
-		g_free(cached_ts->thread_ts);
-		cached_ts->timestr = lookup->timestr;
+	if (ts != NULL) {
+		g_free(lookup->conv->last_thread_timestr);
+		g_free(lookup->conv->last_thread_ts);
+		lookup->conv->last_thread_timestr = lookup->timestr;
 		lookup->timestr = NULL; // Take ownership, avoid strdup.
-		cached_ts->thread_ts = g_strdup(ts);
+		lookup->conv->last_thread_ts = g_strdup(ts);
 	}
 
 	lookup->cb(sa, lookup->conv, lookup->data, ts, lookup->rest);
@@ -246,14 +240,8 @@ static void slack_thread_lookup_ts(SlackAccount *sa, slack_thread_lookup_ts_cb *
 	if (!*end)
 		return cb(sa, conv, data, start, rest);
 
-	SlackCachedThreadTs *cached_ts = NULL;
-	if (SLACK_IS_CHANNEL(conv))
-		cached_ts = &((SlackChannel*)conv)->cached_thread_ts;
-	else if (SLACK_IS_USER(conv))
-		cached_ts = &((SlackUser*)conv)->cached_thread_ts;
-
-	if (cached_ts && cached_ts->timestr && strncmp(timestr, cached_ts->timestr, rest - timestr) == 0)
-		return cb(sa, conv, data, cached_ts->thread_ts, rest);
+	if (conv->last_thread_timestr && conv->last_thread_ts && strncmp(timestr, conv->last_thread_timestr, rest - timestr) == 0)
+		return cb(sa, conv, data, conv->last_thread_ts, rest);
 
 	struct thread_lookup_ts *lookup = g_new(struct thread_lookup_ts, 1);
 	lookup->conv = g_object_ref(conv);

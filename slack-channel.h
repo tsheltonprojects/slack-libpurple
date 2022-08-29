@@ -4,7 +4,6 @@
 #include "json.h"
 #include "slack-object.h"
 #include "slack.h"
-#include "slack-thread.h"
 
 typedef enum _SlackChannelType {
 	SLACK_CHANNEL_UNKNOWN = -1, /* no (new) information about type */
@@ -18,8 +17,6 @@ typedef enum _SlackChannelType {
 /* SlackChannel can represent both channels and groups (private channels) */
 struct _SlackChannel {
 	SlackObject object;
-
-	SlackCachedThreadTs cached_thread_ts;
 
 	SlackChannelType type;
 	int cid; /* purple chat id, in channel_cids */

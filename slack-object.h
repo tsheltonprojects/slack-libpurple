@@ -46,6 +46,9 @@ struct _SlackObject {
 
 	char *last_mesg, *last_read, *last_mark, *last_sent; /* ts marking */
 	struct _SlackObject *mark_next; /* on mark_list if non-null */
+
+	char *last_thread_timestr;
+	char *last_thread_ts;
 };
 
 #define SLACK_TYPE_OBJECT slack_object_get_type()
