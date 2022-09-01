@@ -164,6 +164,18 @@ void slack_message_to_html(GString *html, SlackAccount *sa, gchar *s, PurpleMess
 		}
 		s = r+1;
 	}
+
+	if (strstr(html->str, "slack.com/call") != NULL) {
+		gchar *find = g_strconcat(sa->host, "/call", NULL);
+		gchar *replace = g_strconcat( "app.slack.com/free-willy/", sa->team.id, NULL);
+		gchar *newHtml = purple_strreplace(html->str, find, replace);
+
+		g_string_assign(html, newHtml);
+
+		g_free(find);
+		g_free(replace);
+		g_free(newHtml);
+	}
 }
 
 /*
