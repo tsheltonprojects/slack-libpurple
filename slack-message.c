@@ -456,9 +456,9 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		message = json_get_prop(json, "message");
 		json_value *old_message = json_get_prop(json, "previous_message");
 		/* this may consist only of added attachments, no changed text */
-		gboolean changed = g_strcmp0(json_get_prop_strptr(message, "text"), json_get_prop_strptr(old_message, "text"));
 		// No change means that this is a link update, which we want to suppress.
-		if (changed) {
+		if (purple_account_get_bool(sa->account, "expand_urls", TRUE) ||
+			g_strcmp0(json_get_prop_strptr(message, "text"), json_get_prop_strptr(old_message, "text"))) {
 			g_string_append(html, "<font color=\"#717274\"><i>[edit] ");
 			if (old_message) {
 				g_string_append(html, "(Old message: ");
