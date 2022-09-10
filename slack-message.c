@@ -219,6 +219,10 @@ static void link_html(GString *html, char *url, char *text) {
  * documented at https://api.slack.com/docs/message-attachments
  */
 static void slack_attachment_to_html(GString *html, SlackAccount *sa, json_value *attachment) {
+	char *from_url = json_get_prop_strptr(attachment, "from_url");
+	if (from_url && !purple_account_get_bool(sa->account, "expand_urls", TRUE))
+		return;
+
 	char *service_name = json_get_prop_strptr(attachment, "service_name");
 	char *service_link = json_get_prop_strptr(attachment, "service_link");
 	char *author_name = json_get_prop_strptr(attachment, "author_name");
@@ -453,14 +457,17 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		json_value *old_message = json_get_prop(json, "previous_message");
 		/* this may consist only of added attachments, no changed text */
 		gboolean changed = g_strcmp0(json_get_prop_strptr(message, "text"), json_get_prop_strptr(old_message, "text"));
-		g_string_append(html, "<font color=\"#717274\"><i>[edit] ");
-		if (old_message && changed) {
-			g_string_append(html, "(Old message: ");
-			slack_json_to_html(html, sa, old_message, NULL);
-			g_string_append(html, ")<br>");
+		// No change means that this is a link update, which we want to suppress.
+		if (changed) {
+			g_string_append(html, "<font color=\"#717274\"><i>[edit] ");
+			if (old_message) {
+				g_string_append(html, "(Old message: ");
+				slack_json_to_html(html, sa, old_message, NULL);
+				g_string_append(html, ")<br>");
+			}
+			g_string_append(html, "</i></font>");
+			slack_json_to_html(html, sa, message, &flags);
 		}
-		g_string_append(html, "</i></font>");
-		slack_json_to_html(html, sa, message, &flags);
 	}
 	else if (!g_strcmp0(subtype, "message_deleted")) {
 		message = json_get_prop(json, "previous_message");
