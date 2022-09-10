@@ -39,6 +39,11 @@ void slack_buddy_free(PurpleBuddy *b) {
 		? PURPLE_CHAT(n)->account \
 		: NULL)
 
+static const char *get_chat_name(PurpleChat *chat)
+{
+	return g_hash_table_lookup(purple_chat_get_components(chat), "name");
+}
+
 SlackObject *slack_blist_node_get_obj(PurpleBlistNode *buddy, SlackAccount **sap) {
 	*sap = get_slack_account(PURPLE_BLIST_ACCOUNT(buddy));
 	if (!*sap)
@@ -46,7 +51,7 @@ SlackObject *slack_blist_node_get_obj(PurpleBlistNode *buddy, SlackAccount **sap
 	if (PURPLE_BLIST_NODE_IS_BUDDY(buddy))
 		return g_hash_table_lookup((*sap)->user_names, purple_buddy_get_name(PURPLE_BUDDY(buddy)));
 	else if (PURPLE_BLIST_NODE_IS_CHAT(buddy))
-		return g_hash_table_lookup((*sap)->channel_names, purple_chat_get_name(PURPLE_CHAT(buddy)));
+		return g_hash_table_lookup((*sap)->channel_names, get_chat_name(PURPLE_CHAT(buddy)));
 	return NULL;
 }
 
@@ -108,7 +113,7 @@ static void get_history_cb(PurpleBlistNode *buddy, PurpleRequestFields *fields) 
 
 static void get_history_prompt(PurpleBlistNode *buddy) {
 	SlackAccount *sa = get_slack_account(PURPLE_BLIST_ACCOUNT(buddy));
-	const char *name = PURPLE_BLIST_NODE_NAME(buddy);
+	const char *name = PURPLE_BLIST_NODE_IS_BUDDY(buddy) ? PURPLE_BLIST_NODE_NAME(buddy) : get_chat_name(PURPLE_CHAT(buddy));
 	g_return_if_fail(sa && name);
 
 	PurpleRequestFields *fields = purple_request_fields_new();
