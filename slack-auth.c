@@ -75,11 +75,22 @@ slack_auth_login_findteam_cb(SlackAccount *sa, gpointer user_data, json_value *j
 
 	/* now validate that the user exists and get their ID. */
 	slack_login_step(sa);
-	slack_api_get(sa, slack_auth_login_finduser_cb,
-		NULL, "auth.findUser",
-		"email", sa->email,
-		"team", sa->team.id,
-		NULL);
+	if (strchr(sa->email, '@'))
+		slack_api_get(sa, slack_auth_login_finduser_cb,
+			NULL, "auth.findUser",
+			"email", sa->email,
+			"team", sa->team.id,
+			NULL);
+	else
+	{
+		slack_login_step(sa);
+		slack_api_get(sa, slack_auth_login_signin_cb,
+			NULL, "auth.signin",
+			"user", sa->email,
+			"password", purple_account_get_password(sa->account),
+			"team", sa->team.id,
+			NULL);
+	}
 	return FALSE;
 }
 
