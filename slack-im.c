@@ -188,7 +188,7 @@ int slack_im_send(SlackAccount *sa, SlackUser *user, const char *msg, PurpleMess
 	else
 		send_im_open_cb(sa, send, NULL, NULL);
 
-	return 1;
+	return 0;
 }
 
 int slack_send_im(PurpleConnection *gc, const char *who, const char *msg, PurpleMessageFlags flags) {
