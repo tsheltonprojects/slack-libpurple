@@ -21,6 +21,9 @@ password and have it saved.
 
 For use with [Bitlbee](https://bitlbee.org) set `username` to `user@example.com%<workspace>.slack.com`.
 
+Some slacks (for some reason) don't allow you to lookup user ids.
+If you get errors about "unknown\_method" with `auth.findUser`, you can instead set your username to your actual user id, which usually looks like "UXXXXXXXX" and you can find at the end of the URL for your slack profile.
+
 ### Legacy Authentication
 
 Earlier versions of this plugin used Slack's legacy tokens for authentication.

@@ -34,6 +34,17 @@ slack_auth_login_signin_cb(SlackAccount *sa, gpointer user_data, json_value *jso
 	return FALSE;
 }
 
+static void
+slack_auth_login_user(SlackAccount *sa, const char *user_id) {
+	slack_login_step(sa);
+	slack_api_get(sa, slack_auth_login_signin_cb,
+		NULL, "auth.signin",
+		"user", user_id,
+		"password", purple_account_get_password(sa->account),
+		"team", sa->team.id,
+		NULL);
+}
+
 static gboolean
 slack_auth_login_finduser_cb(SlackAccount *sa, gpointer user_data, json_value *json, const char *error) {
 	const char *user_id = json_get_prop_strptr(json, "user_id");
@@ -48,13 +59,7 @@ slack_auth_login_finduser_cb(SlackAccount *sa, gpointer user_data, json_value *j
 	}
 
 	/* now do the actual login */
-	slack_login_step(sa);
-	slack_api_get(sa, slack_auth_login_signin_cb,
-		NULL, "auth.signin",
-		"user", user_id,
-		"password", purple_account_get_password(sa->account),
-		"team", sa->team.id,
-		NULL);
+	slack_auth_login_user(sa, user_id);
 	return FALSE;
 }
 
@@ -82,15 +87,7 @@ slack_auth_login_findteam_cb(SlackAccount *sa, gpointer user_data, json_value *j
 			"team", sa->team.id,
 			NULL);
 	else
-	{
-		slack_login_step(sa);
-		slack_api_get(sa, slack_auth_login_signin_cb,
-			NULL, "auth.signin",
-			"user", sa->email,
-			"password", purple_account_get_password(sa->account),
-			"team", sa->team.id,
-			NULL);
-	}
+		slack_auth_login_user(sa, sa->email);
 	return FALSE;
 }
 
