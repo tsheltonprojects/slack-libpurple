@@ -489,6 +489,21 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 	}
 
 	time_t mt = slack_parse_time(ts);
+	time_t age = mt;
+	if (!g_strcmp0(subtype, "message_deleted")) {
+		json_value *agets = json_get_prop(message, "deleted_ts");
+		age = slack_parse_time(agets);
+	}
+	int hours = purple_account_get_int(sa->account, "ignore_old_message_hours", 0);
+	time_t cutoff = time(NULL) - (hours * 60 * 60);
+	if (hours != 0 &&
+	    age < cutoff &&
+	    (!g_strcmp0(subtype, "message_changed") ||
+	     !g_strcmp0(subtype, "message_deleted"))) {
+		purple_debug_info("slack", "Ignoring message older than %d hours (message=%lld, cutoff=%lld)\n",
+				  hours, (unsigned long long)mt, (unsigned long long)cutoff);
+		return;
+	}
 	const char *user_id = json_get_prop_strptr(message, "user");
 	SlackUser *user = NULL;
 	if (slack_object_id_is(sa->self->object.id, user_id)) {

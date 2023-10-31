@@ -576,6 +576,9 @@ static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 		purple_account_option_bool_new("Retrieve unread thread history too (slow!)", "thread_history", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_int_new("Hide edits/deletes of messages older than 'n' hours)", "ignore_old_message_hours", 0));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Download user avatars", "enable_avatar_download", FALSE));
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
