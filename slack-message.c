@@ -422,6 +422,18 @@ void slack_write_message(SlackAccount *sa, SlackObject *obj, const char *html, P
 	}
 }
 
+static gboolean check_ignore_old_message(SlackAccount *sa, time_t age) {
+	int hours = purple_account_get_int(sa->account, "ignore_old_message_hours", 0);
+	if (!hours)
+		return FALSE;
+	time_t cutoff = time(NULL) - hours * 60 * 60;
+	if (age >= cutoff)
+		return FALSE;
+	purple_debug_info("slack", "Ignoring message older than %d hours (message=%lld, cutoff=%lld)\n",
+			hours, (unsigned long long)age, (unsigned long long)cutoff);
+	return TRUE;
+}
+
 void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, PurpleMessageFlags flags, gboolean force_threads) {
 	if (!obj) {
 		purple_debug_warning("slack", "Message to unknown channel %s\n", json_get_prop_strptr(json, "channel"));
@@ -452,7 +464,12 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 
 	GString *html = g_string_new(NULL);
 
+	time_t mt = slack_parse_time(ts);
 	if (!g_strcmp0(subtype, "message_changed")) {
+		if (check_ignore_old_message(sa, mt)) {
+			g_string_free(html, TRUE);
+			return;
+		}
 		message = json_get_prop(json, "message");
 		json_value *old_message = json_get_prop(json, "previous_message");
 		/* this may consist only of added attachments, no changed text */
@@ -470,6 +487,10 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		}
 	}
 	else if (!g_strcmp0(subtype, "message_deleted")) {
+		if (check_ignore_old_message(sa, slack_parse_time(json_get_prop(message, "deleted_ts")))) {
+			g_string_free(html, TRUE);
+			return;
+		}
 		message = json_get_prop(json, "previous_message");
 		g_string_append(html, "(<font color=\"#717274\"><i>Deleted message</i></font>");
 		if (message) {
@@ -488,7 +509,6 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		return;
 	}
 
-	time_t mt = slack_parse_time(ts);
 	const char *user_id = json_get_prop_strptr(message, "user");
 	SlackUser *user = NULL;
 	if (slack_object_id_is(sa->self->object.id, user_id)) {
