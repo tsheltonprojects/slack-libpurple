@@ -36,6 +36,16 @@ username/password authentication from above.
 
 If you're using a front-end (like Adium or Spectrum2) that does not let you set the API token, you can enter your token as the account password instead.
 
+### Browser Authentication
+
+Unfortunately on some slacks it's necessary to extract tokens from the browser.
+
+1. While logged into slack, use your browser's devtools to lookup the `localConfig_v2` *local storage* value for https://app.slack.com.
+  * Find the `token` key, which starts `xoxc-`, and copy this whole string.
+2. Get the value of the `d` *cookie* for https://app.slack.com, which starts with `xoxd-`.
+3. Paste these two concatenated strings space separated into the password field of the libpurple account.
+  * This should look like `xoxc-12345 xoxd-67890` (much longer)
+
 ## Usage
 Here's how slack concepts are mapped to purple:
 
