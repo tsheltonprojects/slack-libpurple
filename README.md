@@ -1,4 +1,4 @@
-# slack-libpurple [![Build Status](https://travis-ci.org/dylex/slack-libpurple.svg?branch=master)](https://travis-ci.org/dylex/slack-libpurple)
+# slack-libpurple
 
 A Slack protocol plugin for libpurple IM clients.
 
