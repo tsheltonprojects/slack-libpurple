@@ -42,6 +42,7 @@ Unfortunately on some slacks it's necessary to extract tokens from the browser.
 
 1. While logged into slack, use your browser's devtools to lookup the `localConfig_v2` *local storage* value for https://app.slack.com.
   * Find the `token` key, which starts `xoxc-`, and copy this whole string.
+  * This may be under the `teams` list, in which case you need to find the team corresponding to your workspace.  You can use this JS in the browser console: `Object.values(JSON.parse(localStorage["localConfig_v2"]).teams).find(a => a.domain == 'myslackdomain').token` (replacing `myslackdomain` with the part before `.slack.com` in the URL).
 2. Get the value of the `d` *cookie* for https://app.slack.com, which starts with `xoxd-`.
 3. Paste these two concatenated strings space separated into the password field of the libpurple account.
   * This should look like `xoxc-12345 xoxd-67890` (much longer)
