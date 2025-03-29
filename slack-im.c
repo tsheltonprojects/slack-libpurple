@@ -174,6 +174,7 @@ static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *jso
 int slack_im_send(SlackAccount *sa, SlackUser *user, const char *msg, PurpleMessageFlags flags, const char *thread) {
 	gchar *m = slack_html_to_message(sa, msg, flags);
 	glong mlen = g_utf8_strlen(m, 16384);
+
 	if (mlen > 4000)
 		return -E2BIG;
 
@@ -183,10 +184,11 @@ int slack_im_send(SlackAccount *sa, SlackUser *user, const char *msg, PurpleMess
 	send->flags = flags;
 	send->thread = g_strdup(thread);
 
-	if (!*user->im)
+	if (user->im) {
 		slack_api_post(sa, send_im_open_cb, send, "conversations.open", "users", user->object.id, "return_im", "true", NULL);
-	else
+	} else {
 		send_im_open_cb(sa, send, NULL, NULL);
+	}
 
 	return 0;
 }

@@ -78,10 +78,10 @@ static gboolean conversation_counts_cb(SlackAccount *sa, gpointer data, json_val
 
 	gboolean load_history = purple_account_get_bool(sa->account, "connect_history", FALSE);
 
-	json_value *ims = json_get_prop_type(json, "ims", array);
+	json_value *ims = json_get_prop_type(json, "members", array);
 	for (unsigned i = 0; i < ims->u.array.length; i++) {
 		json_value *im = ims->u.array.values[i];
-		const char *user_id = json_get_prop_strptr(im, "user_id");
+		const char *user_id = json_get_prop_strptr(im, "id");
 		if (!user_id)
 			continue;
 		/* hopefully this is the right name? */
@@ -91,9 +91,9 @@ static gboolean conversation_counts_cb(SlackAccount *sa, gpointer data, json_val
 	}
 
 	load_history = load_history && purple_account_get_bool(sa->account, "open_history", FALSE);
-	conversation_counts_channels(sa, json, "channels", SLACK_CHANNEL_PUBLIC, load_history);
-	conversation_counts_channels(sa, json, "groups", SLACK_CHANNEL_GROUP, load_history);
-	conversation_counts_channels(sa, json, "mpims", SLACK_CHANNEL_MPIM, load_history);
+	//conversation_counts_channels(sa, json, "members", SLACK_CHANNEL_PUBLIC, load_history);
+	//conversation_counts_channels(sa, json, "groups", SLACK_CHANNEL_GROUP, load_history);
+	//conversation_counts_channels(sa, json, "mpims", SLACK_CHANNEL_MPIM, load_history);
 
 	slack_login_step(sa);
 	return FALSE;
@@ -101,7 +101,7 @@ static gboolean conversation_counts_cb(SlackAccount *sa, gpointer data, json_val
 
 void slack_conversation_counts(SlackAccount *sa) {
 	/* Private API, not documented. Found by EionRobb (Github). */
-	slack_api_post(sa, conversation_counts_cb, NULL, "users.counts", "mpim_aware", "true", "only_relevant_ims", "true", "simple_unreads", "true", NULL);
+	slack_api_post(sa, conversation_counts_cb, NULL, "users.list", "mpim_aware", "true", "only_relevant_ims", "true", "simple_unreads", "true", NULL);
 }
 
 SlackObject *slack_conversation_get_conversation(SlackAccount *sa, PurpleConversation *conv) {

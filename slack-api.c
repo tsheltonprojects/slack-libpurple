@@ -116,6 +116,8 @@ static char *slack_api_encode_post_request(SlackAccount *sa, const char *url, va
 	GString *postdata;
 	const char *param;
 
+printf( "url = %s\n", url );
+
 	// Just a long random number.
 	guint64 delim = ((guint64)g_random_int() << 32) | (guint64)g_random_int();
 
