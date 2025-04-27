@@ -53,10 +53,12 @@ SlackUser *slack_im_set(SlackAccount *sa, json_value *json, SlackUser *user, gbo
 	const char *user_id = json_get_prop_strptr(json, "user") ?: (user ? user->object.id : NULL);
 	g_return_val_if_fail(user_id, user);
 
+
 	if (!user) {
 		user = (SlackUser *)slack_object_hash_table_lookup(sa->users, user_id);
 		if (!user) {
 			purple_debug_warning("slack", "IM %s for unknown user: %s\n", sid, user_id);
+			printf("IM %s for unknown user: %s\n", sid, user_id);
 			return user;
 		}
 	} else
@@ -93,6 +95,7 @@ SlackUser *slack_im_set(SlackAccount *sa, json_value *json, SlackUser *user, gbo
 	}
 
 	purple_debug_misc("slack", "im %s: %s\n", user->im, user->object.id);
+	printf("im %s: %s\n", user->im, user->object.id);
 
 	if (changed && update_sub)
 		slack_presence_sub(sa);
@@ -158,15 +161,16 @@ static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *jso
 		return FALSE;
 	}
 
+	char * ts = json_get_prop_strptr(json, "id");
+
+
 	if (send->thread)
 		slack_api_post(sa, send_im_api_cb, send, "chat.postMessage", "channel", send->user->im, "text", send->msg,
 				"thread_ts", send->thread, "as_user", "true", NULL);
 	else {
-		GString *channel = append_json_string(g_string_new(NULL), send->user->im);
-		GString *text = append_json_string(g_string_new(NULL), send->msg);
-		slack_rtm_send(sa, send_im_cb, send, "message", "channel", channel->str, "text", text->str, NULL);
-		g_string_free(channel, TRUE);
-		g_string_free(text, TRUE);
+		slack_api_post(sa, send_im_api_cb, send, "chat.postMessage", "channel", send->user->im, "text", send->msg,
+				"as_user", "true", NULL);
+
 	}
 	return FALSE;
 }
@@ -174,6 +178,7 @@ static gboolean send_im_open_cb(SlackAccount *sa, gpointer data, json_value *jso
 int slack_im_send(SlackAccount *sa, SlackUser *user, const char *msg, PurpleMessageFlags flags, const char *thread) {
 	gchar *m = slack_html_to_message(sa, msg, flags);
 	glong mlen = g_utf8_strlen(m, 16384);
+
 	if (mlen > 4000)
 		return -E2BIG;
 
@@ -183,10 +188,11 @@ int slack_im_send(SlackAccount *sa, SlackUser *user, const char *msg, PurpleMess
 	send->flags = flags;
 	send->thread = g_strdup(thread);
 
-	if (!*user->im)
+	if (user->im) {
 		slack_api_post(sa, send_im_open_cb, send, "conversations.open", "users", user->object.id, "return_im", "true", NULL);
-	else
+	} else {
 		send_im_open_cb(sa, send, NULL, NULL);
+	}
 
 	return 0;
 }

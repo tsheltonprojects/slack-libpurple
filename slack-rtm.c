@@ -11,6 +11,8 @@
 #include "slack-channel.h"
 #include "slack-rtm.h"
 
+
+
 struct _SlackRTMCall {
 	SlackAccount *sa;
 	SlackRTMCallback *callback;
@@ -85,6 +87,7 @@ static void rtm_cb(PurpleWebsocket *ws, gpointer data, PurpleWebsocketOp op, con
 	SlackAccount *sa = data;
 
 	purple_debug_misc("slack", "RTM %x: %.*s\n", op, (int)len, msg);
+	printf("RTM %x: %.*s\n", op, (int)len, msg);
 	switch (op) {
 		case PURPLE_WEBSOCKET_TEXT:
 			break;
@@ -101,9 +104,26 @@ static void rtm_cb(PurpleWebsocket *ws, gpointer data, PurpleWebsocketOp op, con
 			return;
 	}
 
-	json_value *json = json_parse((const char *)msg, len);
+
+	json_value *json_wrapper = json_parse((const char *)msg, len);
+	const char *env_id = json_get_prop_strptr( json_wrapper, "envelope_id" );
+	json_value *json = json_get_prop_type(json_wrapper, "payload", object );
+	if ( json ) {
+		json_value *event = json_get_prop_type(json, "event", object );
+		if ( event ) json = event;
+	}
+	if ( !json ) {
+		json = json_wrapper;
+	} 
 	json_value *reply_to = json_get_prop_type(json, "reply_to", integer);
 	const char *type = json_get_prop_strptr(json, "type");
+
+
+	GString *response_json = g_string_new(NULL);
+	g_string_printf(response_json, "{\"envelope_id\":\"%s\"", env_id);
+	purple_websocket_send(sa->rtm, PURPLE_WEBSOCKET_TEXT, (guchar*)response_json->str, response_json->len);
+	g_string_free(response_json, TRUE);
+
 
 	if (reply_to) {
 		SlackRTMCall *call = g_hash_table_lookup(sa->rtm_call, GUINT_TO_POINTER((guint) reply_to->u.integer));
@@ -147,6 +167,31 @@ static gboolean ping_timer(gpointer data) {
 	return TRUE;
 }
 
+
+static gboolean get_self_cb2(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	if (error) {
+		purple_connection_error_reason(sa->gc, slack_api_connection_error(error), error);
+		return FALSE;
+	}
+
+	json_value *user     = json_get_prop(json, "user");
+	
+	sa->self = g_object_ref(slack_user_update(sa, user));
+	return TRUE;
+}
+
+
+static gboolean get_self_cb1(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
+	if (error) {
+		purple_connection_error_reason(sa->gc, slack_api_connection_error(error), error);
+		return FALSE;
+	}
+
+	const char *user_id     = json_get_prop_strptr(json, "user_id");
+	
+	slack_api_post(sa, get_self_cb2, NULL, "users.info", "user", user_id, NULL);
+	return TRUE;
+}
 static gboolean rtm_connect_cb(SlackAccount *sa, gpointer data, json_value *json, const char *error) {
 	if (error) {
 		purple_connection_error_reason(sa->gc, slack_api_connection_error(error), error);
@@ -161,15 +206,18 @@ static gboolean rtm_connect_cb(SlackAccount *sa, gpointer data, json_value *json
 	const char *url     = json_get_prop_strptr(json, "url");
 	if (sa->self)
 		g_object_unref(sa->self);
-	sa->self = g_object_ref(slack_user_update(sa, json_get_prop_type(json, "self", object)));
 
-	if (!url || !sa->self) {
+	//sa->self = g_object_ref(slack_user_update(sa, "self"));
+
+	slack_api_post(sa, get_self_cb1, NULL, "auth.test", NULL);
+
+	if (!url ) {
 		purple_connection_error_reason(sa->gc,
 				slack_api_connection_error(error), error ?: "Missing RTM parameters");
 		return FALSE;
 	}
 
-	purple_connection_set_display_name(sa->gc, sa->self->object.name);
+	purple_connection_set_display_name(sa->gc, "pibbingston");
 
 #define SET_STR(FIELD, JSON, PROP) ({ \
 		g_free(sa->FIELD); \
@@ -193,6 +241,7 @@ static gboolean rtm_connect_cb(SlackAccount *sa, gpointer data, json_value *json
 		cookie = g_strconcat("d=", sa->d_cookie, NULL);
 
 	purple_debug_info("slack", "RTM URL: %s\n", url);
+	printf("RTM URL: %s\n", url);
 	sa->rtm = purple_websocket_connect(sa->account, url, NULL, cookie, rtm_cb, sa);
 
 	g_free(cookie);
@@ -239,5 +288,5 @@ void slack_rtm_send(SlackAccount *sa, SlackRTMCallback *callback, gpointer user_
 }
 
 void slack_rtm_connect(SlackAccount *sa) {
-	slack_api_post(sa, rtm_connect_cb, NULL, "rtm.connect", "batch_presence_aware", "1", "presence_sub", "true", NULL);
+	slack_api_post_as_app(sa, rtm_connect_cb, NULL, "apps.connections.open", "batch_presence_aware", "1", "presence_sub", "true", NULL);
 }

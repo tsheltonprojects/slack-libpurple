@@ -187,6 +187,7 @@ static void slack_login(PurpleAccount *account) {
 	PurpleConnection *gc = purple_account_get_connection(account);
 	gboolean legacy_token = FALSE;
 	const gchar *token = purple_account_get_string(account, "api_token", NULL);
+	const gchar *app_token = purple_account_get_string(account, "app_token", NULL);
 
 	if(token != NULL && g_str_has_prefix(token, "xoxp-")) {
 		legacy_token = TRUE;
@@ -241,6 +242,7 @@ static void slack_login(PurpleAccount *account) {
 	sa->account = account;
 	sa->gc = gc;
 	sa->host = g_strdup(host);
+	sa->app_token = g_strdup(app_token);
 
 	/* check if we have a token and set it as the password if we do */
 	if (token && *token) {
@@ -312,14 +314,6 @@ static void slack_login(PurpleAccount *account) {
 		sa->login_step = 3;
 
 	} else {
-		if(!password || !*password) {
-			purple_connection_error_reason(
-				purple_account_get_connection(sa->account),
-				PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
-				"No password provided");
-
-			return;
-		}
 
 		/* we do not have a token, so we have to do the mobile login.
 		 * the mobile auth needs some different defaults than the rest of the
@@ -348,17 +342,18 @@ void slack_login_step(SlackAccount *sa) {
 		case 2:
 			MSG("Logging in");
 			break;
-		case 3:
-			MSG("Requesting RTM");
-			slack_rtm_connect(sa);
-			break;
-		case 4: /* slack_connect_cb */
-			MSG("Connecting to RTM");
-			/* purple_websocket_connect */
-			break;
-		case 5: /* rtm_cb */
-			MSG("RTM Connected");
-			break;
+case 3:
+        MSG("Requesting RTM");
+        slack_rtm_connect(sa);
+        break;
+case 4: /* slack_connect_cb */
+        MSG("Connecting to RTM");
+        /* purple_websocket_connect */
+        break;
+case 5: /* rtm_cb */
+        MSG("RTM Connected");
+        break;
+
 		case 6: /* rtm_msg("hello") */
 			lazy = purple_account_get_bool(sa->account, "lazy_load", FALSE);
 			MSG("Loading Users");
@@ -453,7 +448,7 @@ static gboolean slack_unload(PurplePlugin *plugin) {
 static PurplePluginProtocolInfo prpl_info = {
 	/* options */
 	OPT_PROTO_CHAT_TOPIC
-		| OPT_PROTO_PASSWORD_OPTIONAL
+		| OPT_PROTO_NO_PASSWORD 
 		/* TODO, requires redirecting / commands to hidden API: | OPT_PROTO_SLASH_COMMANDS_NATIVE */,
 	NULL,			/* user_splits */
 	NULL,			/* protocol_options */
@@ -561,11 +556,16 @@ static PurplePluginInfo info = {
 
 static void init_plugin(G_GNUC_UNUSED PurplePlugin *plugin)
 {
-	prpl_info.user_splits = g_list_append(prpl_info.user_splits,
-		purple_account_user_split_new("Host", "slack.com", '%'));
+       prpl_info.user_splits = g_list_append(prpl_info.user_splits,
+               purple_account_user_split_new("Host", "slack.com", '%'));
+
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_string_new("API token", "api_token", ""));
+
+	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
+		purple_account_option_string_new("APP Token", "app_token", ""));
+
 
 	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options,
 		purple_account_option_bool_new("Open chat on channel message", "open_chat", FALSE));

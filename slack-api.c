@@ -43,6 +43,7 @@ static void api_error(SlackAPICall *call, const char *error) {
 static gboolean api_retry(SlackAPICall *call);
 static void api_run(SlackAccount *sa);
 
+static char *slack_api_encode_post_request_as_app(SlackAccount *sa, const char *url, va_list qargs);
 static void api_cb(PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *buf, gsize len, const gchar *error) {
 	SlackAccount *sa = data;
 	SlackAPICall *call = g_queue_pop_head(&sa->api_calls);
@@ -50,12 +51,12 @@ static void api_cb(PurpleUtilFetchUrlData *fetch, gpointer data, const gchar *bu
 	call->fetch = NULL;
 
 	purple_debug_misc("slack", "api response: %s\n", error ?: buf);
+	printf( "api response: %s\n", error ?: buf);
 	if (error) {
 		api_error(call, error);
 		api_run(sa);
 		return;
 	}
-
 	json_value *json = json_parse(buf, len);
 	if (!json) {
 		api_error(call, "Invalid JSON response");
@@ -108,6 +109,41 @@ static void api_run(SlackAccount *sa) {
 	api_retry(call);
 }
 
+
+static char *slack_api_encode_post_request_as_app(SlackAccount *sa, const char *url, va_list qargs) {
+	GString *request;
+	gchar *host = NULL, *path = NULL;
+	purple_url_parse(url, &host, NULL, &path, NULL, NULL);
+
+	GString *postdata;
+	const char *param;
+
+printf( "app_url = %s\n", url );
+
+	// Just a long random number.
+	guint64 delim = ((guint64)g_random_int() << 32) | (guint64)g_random_int();
+
+	postdata = g_string_new("");
+	g_string_printf(postdata, "-----------------------------%" G_GUINT64_FORMAT "\r\n", delim);
+
+	request = g_string_new(NULL);
+	g_string_append_printf(request, "\
+POST /%s HTTP/1.0\r\n\
+Host: %s\r\n\\
+Content-Type: application/json\r\n\
+Authorization: Bearer %s\r\n", path, host, sa->app_token);
+
+	g_string_append(request, "\r\n");
+
+	g_free(host);
+	g_free(path);
+	g_string_free(postdata, TRUE);
+
+	return g_string_free(request, FALSE);
+}
+
+
+
 static char *slack_api_encode_post_request(SlackAccount *sa, const char *url, va_list qargs) {
 	GString *request;
 	gchar *host = NULL, *path = NULL;
@@ -115,6 +151,8 @@ static char *slack_api_encode_post_request(SlackAccount *sa, const char *url, va
 
 	GString *postdata;
 	const char *param;
+
+printf( "url = %s\n", url );
 
 	// Just a long random number.
 	guint64 delim = ((guint64)g_random_int() << 32) | (guint64)g_random_int();
@@ -172,6 +210,25 @@ static void slack_api_call_url(SlackAccount *sa, SlackAPICallback callback, gpoi
 	if (empty)
 		api_retry(call);
 }
+
+
+void slack_api_post_as_app(SlackAccount *sa, SlackAPICallback callback, gpointer user_data, const gchar *endpoint, ...)
+{
+	GString *url = g_string_new(NULL);
+	g_string_printf(url, "%s/%s", sa->api_url, endpoint);
+
+	va_list qargs;
+	va_start(qargs, endpoint);
+	char *request = slack_api_encode_post_request_as_app(sa, url->str, qargs);
+	va_end(qargs);
+
+	slack_api_call_url(sa, callback, user_data, url->str, request);
+
+	g_string_free(url, TRUE);
+  	g_free(request);
+}
+
+
 
 void slack_api_post(SlackAccount *sa, SlackAPICallback callback, gpointer user_data, const gchar *endpoint, ...)
 {

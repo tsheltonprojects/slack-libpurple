@@ -49,6 +49,7 @@ static gboolean
 slack_auth_login_finduser_cb(SlackAccount *sa, gpointer user_data, json_value *json, const char *error) {
 	const char *user_id = json_get_prop_strptr(json, "user_id");
 
+
 	if(error != NULL || user_id == NULL) {
 		purple_connection_error_reason(
 			purple_account_get_connection(sa->account),

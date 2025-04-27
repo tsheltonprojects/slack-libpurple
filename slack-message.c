@@ -443,63 +443,63 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 	json_value *message     = json;
 	json_value *ts = json_get_prop(message, "ts");
 	const char *tss = json_get_strptr(ts);
-	const char *subtype = json_get_prop_strptr(message, "subtype");
-	const char *thread = json_get_prop_strptr(message, "thread_ts");
+	//const char *subtype = json_get_prop_strptr(message, "subtype");
+	const char *thread = json_get_prop_strptr(message, "ts");
 
-	if (thread && slack_ts_cmp(tss, thread) && g_strcmp0(subtype, "thread_broadcast") && !force_threads &&
-		!purple_account_get_bool(sa->account, "display_threads", TRUE))
-		return;
+	//if (thread && slack_ts_cmp(tss, thread) && g_strcmp0(subtype, "thread_broadcast") && !force_threads &&
+	//	!purple_account_get_bool(sa->account, "display_threads", TRUE))
+	//	return;
 
-	if (!g_strcmp0(subtype, "message_replied")) {
-		message = json_get_prop_type(json, "message", object);
-		if (!message || !purple_account_get_bool(sa->account, "display_parent_indicator", TRUE))
-			return;
-		int reply_count = json_get_prop_val(message, "reply_count", integer, 0);
-		ts = json_get_prop(message, "ts");
-		tss = json_get_strptr(ts);
-		thread = json_get_prop_strptr(message, "thread_ts");
-		if (reply_count != 1 || !thread)
-			return;
-	}
+	//if (!g_strcmp0(subtype, "message_replied")) {
+	//	message = json_get_prop_type(json, "message", object);
+	//	if (!message || !purple_account_get_bool(sa->account, "display_parent_indicator", TRUE))
+	//		return;
+	//	int reply_count = json_get_prop_val(message, "reply_count", integer, 0);
+	//	ts = json_get_prop(message, "ts");
+	//	tss = json_get_strptr(ts);
+	//	thread = json_get_prop_strptr(message, "ts");
+	//	if (reply_count != 1 || !thread)
+	//		return;
+	//}
 
 	GString *html = g_string_new(NULL);
 
 	time_t mt = slack_parse_time(ts);
-	if (!g_strcmp0(subtype, "message_changed")) {
-		if (check_ignore_old_message(sa, mt)) {
-			g_string_free(html, TRUE);
-			return;
-		}
-		message = json_get_prop(json, "message");
-		json_value *old_message = json_get_prop(json, "previous_message");
-		/* this may consist only of added attachments, no changed text */
-		gboolean changed = g_strcmp0(json_get_prop_strptr(message, "text"), json_get_prop_strptr(old_message, "text"));
-		// No change means that this is a link update, which we want to suppress.
-		if (changed || purple_account_get_bool(sa->account, "expand_urls", TRUE)) {
-			g_string_append(html, "<font color=\"#717274\"><i>[edit] ");
-			if (old_message && changed) {
-				g_string_append(html, "(Old message: ");
-				slack_json_to_html(html, sa, old_message, NULL);
-				g_string_append(html, ")<br>");
-			}
-			g_string_append(html, "</i></font>");
-			slack_json_to_html(html, sa, message, &flags);
-		}
-	}
-	else if (!g_strcmp0(subtype, "message_deleted")) {
-		if (check_ignore_old_message(sa, slack_parse_time(json_get_prop(message, "deleted_ts")))) {
-			g_string_free(html, TRUE);
-			return;
-		}
-		message = json_get_prop(json, "previous_message");
-		g_string_append(html, "(<font color=\"#717274\"><i>Deleted message</i></font>");
-		if (message) {
-			g_string_append(html, ": ");
-			slack_json_to_html(html, sa, message, &flags);
-		}
-		g_string_append(html, ")");
-	}
-	else
+	//if (!g_strcmp0(subtype, "message_changed")) {
+	//	if (check_ignore_old_message(sa, mt)) {
+	//		g_string_free(html, TRUE);
+	//		return;
+	//	}
+	//	message = json_get_prop(json, "message");
+	//	json_value *old_message = json_get_prop(json, "previous_message");
+	//	/* this may consist only of added attachments, no changed text */
+	//	gboolean changed = g_strcmp0(json_get_prop_strptr(message, "text"), json_get_prop_strptr(old_message, "text"));
+	//	// No change means that this is a link update, which we want to suppress.
+	//	if (changed || purple_account_get_bool(sa->account, "expand_urls", TRUE)) {
+	//		g_string_append(html, "<font color=\"#717274\"><i>[edit] ");
+	//		if (old_message && changed) {
+	//			g_string_append(html, "(Old message: ");
+	//			slack_json_to_html(html, sa, old_message, NULL);
+	//			g_string_append(html, ")<br>");
+	//		}
+	//		g_string_append(html, "</i></font>");
+	//		slack_json_to_html(html, sa, message, &flags);
+	//	}
+	//}
+	//else if (!g_strcmp0(subtype, "message_deleted")) {
+	//	if (check_ignore_old_message(sa, slack_parse_time(json_get_prop(message, "deleted_ts")))) {
+	//		g_string_free(html, TRUE);
+	//		return;
+	//	}
+	//	message = json_get_prop(json, "previous_message");
+	//	g_string_append(html, "(<font color=\"#717274\"><i>Deleted message</i></font>");
+	//	if (message) {
+	//		g_string_append(html, ": ");
+	//		slack_json_to_html(html, sa, message, &flags);
+	//	}
+	//	g_string_append(html, ")");
+	//}
+	//else
 		slack_json_to_html(html, sa, message, &flags);
 
 	if (!html->len) {
@@ -544,10 +544,6 @@ void slack_handle_message(SlackAccount *sa, SlackObject *obj, json_value *json, 
 		PurpleConvChat *chat = slack_channel_get_conversation(sa, chan);
 		if (chat) {
 			conv = purple_conv_chat_get_conversation(chat);
-			if (!subtype);
-			else if (!strcmp(subtype, "channel_topic") ||
-					!strcmp(subtype, "group_topic"))
-				purple_conv_chat_set_topic(chat, user ? user->object.name : user_id, json_get_prop_strptr(json, "topic"));
 		}
 		
 		serv_got_chat_in(sa->gc, chan->cid, user ? user->object.name : user_id ?: username ?: "", flags, html->str, mt);

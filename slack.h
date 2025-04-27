@@ -19,6 +19,7 @@ typedef struct _SlackAccount {
 	char *email;
 	char *host;
 	char *api_url; /* e.g., "https://slack.com/api" */
+	char *app_token; /* url encoded */
 	char *token; /* url encoded */
 	char *d_cookie;
 
