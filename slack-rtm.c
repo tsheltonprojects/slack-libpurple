@@ -119,10 +119,12 @@ static void rtm_cb(PurpleWebsocket *ws, gpointer data, PurpleWebsocketOp op, con
 	const char *type = json_get_prop_strptr(json, "type");
 
 
-	GString *response_json = g_string_new(NULL);
-	g_string_printf(response_json, "{\"envelope_id\":\"%s\"", env_id);
-	purple_websocket_send(sa->rtm, PURPLE_WEBSOCKET_TEXT, (guchar*)response_json->str, response_json->len);
-	g_string_free(response_json, TRUE);
+	if ( sa->rtm ) {
+		GString *response_json = g_string_new(NULL);
+		g_string_printf(response_json, "{\"envelope_id\":\"%s\"", env_id);
+		purple_websocket_send(sa->rtm, PURPLE_WEBSOCKET_TEXT, (guchar*)response_json->str, response_json->len);
+		g_string_free(response_json, TRUE);
+	}
 
 
 	if (reply_to) {
